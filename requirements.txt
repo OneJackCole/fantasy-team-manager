@@ -1,0 +1,4 @@
+requests
+anthropic
+yahoo_oauth
+yahoo_fantasy_api

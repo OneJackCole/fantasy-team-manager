@@ -1,0 +1,9 @@
+# Secrets - never commit these
+oauth2.json
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
