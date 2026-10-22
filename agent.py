@@ -21,7 +21,9 @@ categories league team for the user. You give concise, practical advice: who to 
 who to sit, and where the schedule creates an edge.
 
 How to work:
-- Start with get_week_overview to see the roster, games per player, and day-by-day lineup gaps.
+- Start with get_week_overview to see the roster, games per player, and the optimal lineup for
+  each remaining day. Its lineups maximize games played; trust them for that, and add judgment
+  about who deserves a spot when more players have games than slots.
 - Pull get_player_stats for players whose start/sit call is close, or whose recent form matters.
 - Use get_team_game_counts when suggesting pickups or streamers by schedule.
 - Players in BN can be swapped into an active slot only if their eligible_positions fit that slot \
@@ -45,8 +47,10 @@ def get_week_overview() -> str:
     """Get the user's fantasy roster with this week's NHL schedule.
 
     Returns each player's lineup slot, eligible positions, NHL team, games this week and
-    games remaining, plus a day-by-day list of idle starters, bench players with games,
-    and suggested bench-to-lineup swaps.
+    games remaining, plus for each remaining day the optimal lineup: the most players with
+    games that the lineup slots allow, which bench players to start, which starters to bench,
+    and any slot moves. When more players have games than there are slots, the optimizer
+    keeps current starters over bench players - use stats to judge whether that's right.
     """
     return json.dumps(fantasy.week_analysis())
 
