@@ -1,4 +1,5 @@
 """Thin client for the public (unauthenticated) NHL APIs."""
+import time
 import unicodedata
 from datetime import date, timedelta
 from functools import lru_cache
@@ -28,7 +29,12 @@ def fold_name(name):
 
 
 def _get(url, **params):
-    response = requests.get(url, params=params or None, timeout=15)
+    for attempt in range(4):
+        response = requests.get(url, params=params or None, timeout=15)
+        if response.status_code != 429:
+            break
+        # Rate limited - back off and retry
+        time.sleep(int(response.headers.get('Retry-After', 2 ** (attempt + 1))))
     response.raise_for_status()
     return response.json()
 

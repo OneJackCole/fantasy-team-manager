@@ -59,8 +59,14 @@ def optimal_lineup(playing, slots):
                                             slot_type(s) == 'Util'))
 
     def place(player, seen):
-        for slot in preferred_slots(player):
-            if slot in seen or not can_fill(player, slot_type(slot)):
+        options = [s for s in preferred_slots(player) if can_fill(player, slot_type(s))]
+        # Take an open slot if there is one before bumping anyone
+        for slot in options:
+            if slot not in assignment and slot not in seen:
+                assignment[slot] = player
+                return True
+        for slot in options:
+            if slot in seen:
                 continue
             seen.add(slot)
             if slot not in assignment or place(assignment[slot], seen):
@@ -69,6 +75,13 @@ def optimal_lineup(playing, slots):
         return False
 
     for player in candidates:
+        place(player, set())
+
+    # Same players, re-seated with current starters placed first, so bench players fill
+    # the open slots instead of bumping starters around (fewer moves to make in Yahoo)
+    chosen = sorted(assignment.values(), key=lambda p: p['position'] == 'BN')
+    assignment = {}
+    for player in chosen:
         place(player, set())
     return assignment
 
