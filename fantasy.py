@@ -4,6 +4,7 @@ import sys
 from datetime import date, timedelta
 
 import nhl_api
+import scoring
 
 ROSTER_FILE = 'roster.json'
 INACTIVE_SLOTS = {'BN', 'IR', 'IR+'}
@@ -40,15 +41,16 @@ def lineup_slots(players):
 
 
 def optimal_lineup(playing, slots):
-    """Fill as many slots as possible with players who have a game.
+    """Highest expected-points lineup from players who have a game.
 
-    Players are tried in priority order (current starters first, then bench, in roster
-    order) and a player only displaces someone by moving them to another slot, so the
-    result is the largest possible lineup that keeps the highest-priority players.
-    Injured (IR/IR+) players are never used. Returns {slot: player}.
+    Players are tried best-first (by expected points per game; current starters win ties)
+    and a player only displaces someone by moving them to another slot. Because lineup
+    slots form a matroid, this greedy order gives the maximum-value lineup, and it always
+    fills as many slots as possible. Injured (IR/IR+) players are never used.
+    Returns {slot: player}.
     """
     candidates = [p for p in playing if p['position'] not in INJURED_SLOTS]
-    candidates.sort(key=lambda p: p['position'] == 'BN')
+    candidates.sort(key=lambda p: (-p.get('value', 0), p['position'] == 'BN'))
     assignment = {}
 
     def preferred_slots(player):
@@ -78,17 +80,35 @@ def week_analysis(today=None):
     schedule = nhl_api.get_week_schedule(start)
     days = [(start + timedelta(days=i)).isoformat() for i in range(7)]
     roster = load_roster()
+    league = roster.get('league', {})
+    rules = league.get('scoring', {})
 
     players = []
     for p in all_players(roster):
-        games = schedule.get(nhl_api.normalize_team(p['nhl_team']), [])
-        players.append({
+        team = nhl_api.normalize_team(p['nhl_team'])
+        games = schedule.get(team, [])
+        player = {
             **p,
             'games_this_week': len(games),
             'games_remaining': sum(1 for g in games if g['date'] >= today.isoformat()),
             'game_dates': [g['date'] for g in games],
             'games': games,
-        })
+        }
+        nhl = nhl_api.find_player(p['name'], team)
+        if nhl is None:
+            player.update(value=0.0, value_basis='player not found in NHL data')
+        else:
+            if nhl['team'] and nhl['team'] != team:
+                player['team_mismatch'] = f"NHL lists {p['name']} on {nhl['team']}"
+            if 'G' in p['eligible_positions']:
+                v = scoring.goalie_value(nhl['id'], team, rules)
+                player['start_dates'] = scoring.goalie_start_dates(nhl['id'], days)
+                player['starts_this_week'] = len(player['start_dates'])
+                player['start_rate'] = v['start_rate']
+            else:
+                v = scoring.skater_value(nhl['id'], rules)
+            player.update(value=v['value'], value_basis=v['basis'])
+        players.append(player)
 
     slots = lineup_slots(players)
     daily = []
@@ -113,6 +133,10 @@ def week_analysis(today=None):
             'date': day,
             'players_in_lineup_with_games': players_with_games,
             'current_lineup_with_games': sum(1 for p in current_starters if p in playing),
+            'projected_points': round(sum(p['value'] for p in lineup.values()
+                                          if p in playing), 2),
+            'current_lineup_projected_points': round(sum(p['value'] for p in current_starters
+                                                         if p in playing), 2),
             'optimal_lineup': {slot: lineup[slot]['name'] if slot in lineup else None
                                for slot in slots},
             'start': [p['name'] for p in players
@@ -126,13 +150,32 @@ def week_analysis(today=None):
                                     and p['position'] not in INJURED_SLOTS],
         })
 
+    # Goalie minimum: starts already made plus expected starts on remaining lineup days.
+    # Today counts as remaining unless the game log already shows a start today.
+    goalie_starts = {'minimum': league.get('min_goalie_starts_per_week'), 'goalies': []}
+    for g in players:
+        if 'starts_this_week' not in g:
+            continue
+        logged = set(g.get('start_dates', []))
+        lineup_days = [d['date'] for d in daily
+                       if g['name'] in d['optimal_lineup'].values()
+                       and d['date'] in g['game_dates'] and d['date'] not in logged]
+        goalie_starts['goalies'].append({
+            'name': g['name'],
+            'starts_so_far': g['starts_this_week'],
+            'expected_remaining': round(g['start_rate'] * len(lineup_days), 1),
+        })
+    goalie_starts['projected_total'] = round(sum(
+        g['starts_so_far'] + g['expected_remaining'] for g in goalie_starts['goalies']), 1)
+
     return {
         'today': today.isoformat(),
         'week': f"{days[0]} to {days[-1]}",
         'team_name': roster['team_name'],
-        'league': roster.get('league', {}),
+        'league': league,
         'players': players,
         'daily': daily,
+        'goalie_starts': goalie_starts,
     }
 
 
@@ -141,14 +184,17 @@ def print_report(today=None):
     a = week_analysis(today)
     print(f"{a['team_name']}  |  week {a['week']}  |  today {a['today']}")
     print('-' * 64)
-    print(f"{'Slot':<5} {'Player':<22} {'Team':<4} {'Week':>4} {'Left':>4}")
+    print(f"{'Slot':<5} {'Player':<22} {'Team':<4} {'Week':>4} {'Left':>4} {'Pts/G':>6}")
     for p in a['players']:
         print(f"{p['position']:<5} {p['name']:<22} {p['nhl_team']:<4} "
-              f"{p['games_this_week']:>4} {p['games_remaining']:>4}")
+              f"{p['games_this_week']:>4} {p['games_remaining']:>4} {p['value']:>6.2f}"
+              + (f"   ! {p['team_mismatch']}" if p.get('team_mismatch') else ''))
     for d in a['daily']:
         weekday = date.fromisoformat(d['date']).strftime('%a')
-        print(f"\n{weekday} {d['date']}: {d['players_in_lineup_with_games']} with games "
-              f"(current lineup: {d['current_lineup_with_games']})")
+        print(f"\n{weekday} {d['date']}: {d['players_in_lineup_with_games']} with games, "
+              f"{d['projected_points']:.1f} projected pts "
+              f"(current lineup: {d['current_lineup_with_games']} games, "
+              f"{d['current_lineup_projected_points']:.1f} pts)")
         if d['start']:
             print(f"  Start: {', '.join(d['start'])}   Bench: {', '.join(d['sit'])}")
         if d['moved_slots']:
@@ -156,11 +202,24 @@ def print_report(today=None):
         if not d['start'] and not d['moved_slots']:
             print("  No changes needed.")
         has_game = {p['name'] for p in a['players'] if d['date'] in p['game_dates']}
+        value = {p['name']: p['value'] for p in a['players']}
         for slot, name in d['optimal_lineup'].items():
-            note = '' if name is None or name in has_game else '  (no game)'
+            if name is None:
+                note = ''
+            elif name in has_game:
+                note = f"  {value[name]:.2f}"
+            else:
+                note = '  (no game)'
             print(f"  {slot_type(slot):<5} {name or '-'}{note}")
         if d['playing_but_no_slot']:
             print(f"  Playing but no room: {', '.join(d['playing_but_no_slot'])}")
+
+    gs = a['goalie_starts']
+    print("\nGoalie starts: " + ", ".join(
+        f"{g['name']} {g['starts_so_far']} so far + ~{g['expected_remaining']}"
+        for g in gs['goalies'])
+        + f"  ->  ~{gs['projected_total']} projected"
+        + (f" (minimum {gs['minimum']})" if gs['minimum'] else ''))
 
 
 if __name__ == '__main__':

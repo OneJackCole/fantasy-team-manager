@@ -1,9 +1,10 @@
 {
   "team_name": "My Fantasy Squad",
   "league": {
-    "format": "Head-to-head categories",
-    "scoring_categories": ["G", "A", "+/-", "PIM", "PPP", "SOG", "W", "GAA", "SV%", "SO"],
-    "notes": "Edit scoring_categories to match your league settings."
+    "format": "Head-to-head points",
+    "scoring": {"goals": 1, "assists": 1, "powerPlayPoints": 1, "shorthandedPoints": 1, "wins": 1, "shutouts": 2},
+    "min_goalie_starts_per_week": 3,
+    "notes": "Scoring keys are NHL API stat names."
   },
   "forwards": [
     {"name": "Connor McDavid", "nhl_team": "EDM", "position": "C", "eligible_positions": ["C"], "status": "Active"},

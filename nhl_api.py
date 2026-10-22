@@ -81,9 +81,46 @@ def find_player(name, team_hint=None):
 
 
 @lru_cache(maxsize=64)
+def _landing(player_id):
+    return _get(f"{WEB_API}/player/{player_id}/landing")
+
+
+def get_season_totals(player_id):
+    """NHL regular-season totals by season id, e.g. {20262027: {...}, 20252026: {...}}.
+
+    Seasons split across teams (trades) are summed.
+    """
+    totals = {}
+    for row in _landing(player_id).get('seasonTotals', []):
+        if row.get('leagueAbbrev') != 'NHL' or row.get('gameTypeId') != 2:
+            continue
+        season = totals.setdefault(row['season'], {})
+        for key, value in row.items():
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                season[key] = season.get(key, 0) + value
+    return totals
+
+
+@lru_cache(maxsize=64)
+def get_game_log(player_id):
+    """This season's regular-season game log, most recent first."""
+    return _get(f"{WEB_API}/player/{player_id}/game-log/now").get('gameLog', [])
+
+
+@lru_cache(maxsize=1)
+def get_team_games_played():
+    """{team_abbrev: games played this season} from the current standings."""
+    data = _get(f"{WEB_API}/standings/now")
+    return {row['teamAbbrev']['default']: row['gamesPlayed'] for row in data['standings']}
+
+
+def current_season(player_id):
+    return _landing(player_id).get('featuredStats', {}).get('season')
+
+
 def get_player_stats(player_id):
     """Current-season stats and the last 5 games for a player."""
-    data = _get(f"{WEB_API}/player/{player_id}/landing")
+    data = _landing(player_id)
     featured = data.get('featuredStats', {})
     return {
         'name': f"{data['firstName']['default']} {data['lastName']['default']}",

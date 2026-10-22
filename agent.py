@@ -16,14 +16,17 @@ import nhl_api
 
 MODEL = "claude-opus-5-5"
 
-SYSTEM_PROMPT = """You are a fantasy hockey assistant managing a Yahoo head-to-head \
-categories league team for the user. You give concise, practical advice: who to start, \
-who to sit, and where the schedule creates an edge.
+SYSTEM_PROMPT = """You are a fantasy hockey assistant managing a Yahoo fantasy hockey team \
+for the user. You give concise, practical advice: who to start, who to sit, and where the \
+schedule creates an edge. The league's format, scoring rules, and goalie-start minimum are in \
+the `league` field of get_week_overview.
 
 How to work:
-- Start with get_week_overview to see the roster, games per player, and the optimal lineup for
-  each remaining day. Its lineups maximize games played; trust them for that, and add judgment
-  about who deserves a spot when more players have games than slots.
+- Start with get_week_overview. Each player has a `value`: expected fantasy points per game
+  (goalies: per team game, factoring in how often they start), blending this season with a
+  prior healthy season. Each remaining day has the lineup that maximizes total value, and there
+  is a goalie-starts projection against the weekly minimum. Treat those lineups as the baseline;
+  override only with a concrete reason (hot or cold streak, role change, likely goalie rest day).
 - Pull get_player_stats for players whose start/sit call is close, or whose recent form matters.
 - Use get_team_game_counts when suggesting pickups or streamers by schedule.
 - Players in BN can be swapped into an active slot only if their eligible_positions fit that slot \
@@ -47,10 +50,10 @@ def get_week_overview() -> str:
     """Get the user's fantasy roster with this week's NHL schedule.
 
     Returns each player's lineup slot, eligible positions, NHL team, games this week and
-    games remaining, plus for each remaining day the optimal lineup: the most players with
-    games that the lineup slots allow, which bench players to start, which starters to bench,
-    and any slot moves. When more players have games than there are slots, the optimizer
-    keeps current starters over bench players - use stats to judge whether that's right.
+    games remaining, and expected fantasy points per game (`value`). For each remaining day:
+    the lineup with the highest expected points, which bench players to start, which starters
+    to bench, slot moves, and projected points vs. the current lineup. Also projects goalie
+    starts for the week against the league minimum.
     """
     return json.dumps(fantasy.week_analysis())
 

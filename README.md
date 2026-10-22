@@ -15,7 +15,7 @@ setx ANTHROPIC_API_KEY "sk-ant-..."
 ```
 
 Keep `roster.json` up to date with your lineup (slot in `position`, e.g. `C`, `W`, `Util`, `D`, `G`, `BN`, `IR`).
-Edit `league.scoring_categories` to match your league.
+League scoring lives in `league.scoring` (keys are NHL API stat names, e.g. `goals`, `powerPlayPoints`, `shutouts`).
 
 ## Usage
 
@@ -28,7 +28,8 @@ python agent.py "Should I start Dostal on Saturday?"
 ## Files
 
 - `nhl_api.py` - public NHL API client (schedule, player search, stats)
-- `fantasy.py` - roster + schedule analysis: games per player, idle starters, bench swaps
+- `scoring.py` - expected fantasy points per game from the league scoring rules
+- `fantasy.py` - roster + schedule analysis: best lineup for each day, goalie start tracking
 - `agent.py` - Claude agent with tools over the above
 - `test_yahoo.py` - Yahoo Fantasy API connection test (blocked pending Yahoo API approval)
 
