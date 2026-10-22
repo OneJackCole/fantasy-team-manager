@@ -73,6 +73,111 @@ def optimal_lineup(playing, slots):
     return assignment
 
 
+def add_value(player, rules, week_days):
+    """Attach expected fantasy points per game (and goalie start info) to a roster player."""
+    team = nhl_api.normalize_team(player['nhl_team'])
+    nhl = nhl_api.find_player(player['name'], team)
+    if nhl is None:
+        player.update(value=0.0, value_basis='player not found in NHL data')
+        return
+    if nhl['team'] and nhl['team'] != team:
+        player['team_mismatch'] = f"NHL lists {player['name']} on {nhl['team']}"
+    if 'G' in player['eligible_positions']:
+        v = scoring.goalie_value(nhl['id'], team, rules)
+        player['start_dates'] = scoring.goalie_start_dates(nhl['id'], week_days)
+        player['starts_this_week'] = len(player['start_dates'])
+        player['start_rate'] = v['start_rate']
+    else:
+        v = scoring.skater_value(nhl['id'], rules)
+    player.update(value=v['value'], value_basis=v['basis'])
+
+
+def drop_analysis(activate_name, weeks=4, today=None):
+    """Who to drop to activate a player from IR.
+
+    For each droppable player, projects total fantasy points over the next `weeks` weeks
+    of the real NHL schedule (optimal lineup every day) with `activate_name` on the roster.
+    """
+    today = today or date.today()
+    roster = load_roster()
+    rules = roster.get('league', {}).get('scoring', {})
+    players = [dict(p) for p in all_players(roster)]
+
+    target = next((p for p in players if nhl_api.fold_name(p['name']) == nhl_api.fold_name(activate_name)),
+                  None)
+    if target is None:
+        raise ValueError(f"{activate_name} is not on the roster")
+
+    # Slots come from the current lineup, before anything moves
+    slots = lineup_slots(players)
+    target['position'] = 'BN'
+
+    first_week = nhl_api.week_start(today)
+    days = [today + timedelta(days=i) for i in range(weeks * 7)]
+    week_days = [(first_week + timedelta(days=i)).isoformat() for i in range(7)]
+    game_dates = {}
+    for w in range(weeks + 1):
+        for team, games in nhl_api.get_week_schedule(first_week + timedelta(weeks=w)).items():
+            game_dates.setdefault(team, set()).update(g['date'] for g in games)
+
+    for p in players:
+        add_value(p, rules, week_days)
+        p['game_dates'] = sorted(game_dates.get(nhl_api.normalize_team(p['nhl_team']), ()))
+
+    min_starts = roster.get('league', {}).get('min_goalie_starts_per_week') or 0
+
+    def project(roster_players):
+        """(total expected points, expected goalie starts per week) over the horizon."""
+        total = starts = 0.0
+        for day in days:
+            playing = [p for p in roster_players if day.isoformat() in p['game_dates']]
+            lineup = optimal_lineup(playing, slots).values()
+            total += sum(p['value'] for p in lineup)
+            starts += sum(p.get('start_rate', 0) for p in lineup)
+        return total, starts / weeks
+
+    candidates = [p for p in players if p is not target and p['position'] not in INJURED_SLOTS]
+    results = []
+    for drop in candidates:
+        points, goalie_starts = project([p for p in players if p is not drop])
+        results.append({
+            'drop': drop['name'],
+            'position': drop['position'],
+            'eligible_positions': drop['eligible_positions'],
+            'value_per_game': drop['value'],
+            'projected_points': round(points, 1),
+            'goalie_starts_per_week': round(goalie_starts, 1),
+            'meets_goalie_minimum': goalie_starts >= min_starts,
+        })
+    # Options that keep the goalie minimum first, then by projected points
+    results.sort(key=lambda r: (not r['meets_goalie_minimum'], -r['projected_points']))
+    best = results[0]['projected_points']
+    for r in results:
+        r['points_lost_vs_best'] = round(best - r['projected_points'], 1)
+
+    return {
+        'activate': target['name'],
+        'activate_value_per_game': target['value'],
+        'horizon': f"{days[0].isoformat()} to {days[-1].isoformat()}",
+        'min_goalie_starts_per_week': min_starts,
+        'options': results,
+    }
+
+
+def print_drop_report(activate_name):
+    sys.stdout.reconfigure(encoding='utf-8')
+    a = drop_analysis(activate_name)
+    print(f"Activating {a['activate']} ({a['activate_value_per_game']:.2f} pts/G)  |  "
+          f"projection {a['horizon']}")
+    print('-' * 64)
+    print(f"{'Drop':<22} {'Slot':<5} {'Pts/G':>6} {'Team pts':>9} {'Lost':>6} {'G starts/wk':>12}")
+    for r in a['options']:
+        flag = '  below goalie minimum' if not r['meets_goalie_minimum'] else ''
+        print(f"{r['drop']:<22} {r['position']:<5} {r['value_per_game']:>6.2f} "
+              f"{r['projected_points']:>9.1f} {r['points_lost_vs_best']:>6.1f} "
+              f"{r['goalie_starts_per_week']:>12.1f}{flag}")
+
+
 def week_analysis(today=None):
     """Everything the agent needs to reason about this fantasy week."""
     today = today or date.today()
@@ -94,20 +199,7 @@ def week_analysis(today=None):
             'game_dates': [g['date'] for g in games],
             'games': games,
         }
-        nhl = nhl_api.find_player(p['name'], team)
-        if nhl is None:
-            player.update(value=0.0, value_basis='player not found in NHL data')
-        else:
-            if nhl['team'] and nhl['team'] != team:
-                player['team_mismatch'] = f"NHL lists {p['name']} on {nhl['team']}"
-            if 'G' in p['eligible_positions']:
-                v = scoring.goalie_value(nhl['id'], team, rules)
-                player['start_dates'] = scoring.goalie_start_dates(nhl['id'], days)
-                player['starts_this_week'] = len(player['start_dates'])
-                player['start_rate'] = v['start_rate']
-            else:
-                v = scoring.skater_value(nhl['id'], rules)
-            player.update(value=v['value'], value_basis=v['basis'])
+        add_value(player, rules, days)
         players.append(player)
 
     slots = lineup_slots(players)
@@ -223,4 +315,7 @@ def print_report(today=None):
 
 
 if __name__ == '__main__':
-    print_report()
+    if len(sys.argv) >= 3 and sys.argv[1] == 'drop':
+        print_drop_report(' '.join(sys.argv[2:]))
+    else:
+        print_report()

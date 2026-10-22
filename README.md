@@ -23,6 +23,7 @@ League scoring lives in `league.scoring` (keys are NHL API stat names, e.g. `goa
 python fantasy.py                      # schedule report, no AI, free
 python agent.py                        # Claude daily briefing
 python agent.py "Should I start Dostal on Saturday?"
+python fantasy.py drop Seth Jarvis      # who to drop to activate an IR player
 ```
 
 ## Files

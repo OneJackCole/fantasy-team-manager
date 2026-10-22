@@ -21,7 +21,7 @@ def normalize_team(abbrev):
     return TEAM_ALIASES.get(abbrev, abbrev)
 
 
-def _fold(name):
+def fold_name(name):
     """Lowercase and strip accents so 'Lafrenière' matches 'Lafreniere'."""
     decomposed = unicodedata.normalize('NFKD', name)
     return ''.join(c for c in decomposed if not unicodedata.combining(c)).lower().strip()
@@ -65,7 +65,7 @@ def find_player(name, team_hint=None):
     `team_hint` breaks ties between players with the same name.
     """
     results = _get(SEARCH_API, culture='en-us', limit=20, q=name, active='true')
-    matches = [r for r in results if _fold(r['name']) == _fold(name)]
+    matches = [r for r in results if fold_name(r['name']) == fold_name(name)]
     if not matches:
         return None
     if team_hint and len(matches) > 1:

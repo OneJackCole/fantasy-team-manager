@@ -29,6 +29,7 @@ How to work:
   override only with a concrete reason (hot or cold streak, role change, likely goalie rest day).
 - Pull get_player_stats for players whose start/sit call is close, or whose recent form matters.
 - Use get_team_game_counts when suggesting pickups or streamers by schedule.
+- When a player comes off IR, use evaluate_drop_candidates to decide who to drop.
 - Players in BN can be swapped into an active slot only if their eligible_positions fit that slot \
 (Util takes any skater). Players in IR/IR+ slots are injured and can't play.
 
@@ -73,6 +74,23 @@ def get_player_stats(name: str, team: str = "") -> str:
 
 
 @beta_tool
+def evaluate_drop_candidates(activate_player: str) -> str:
+    """Rank who to drop to make room for a player coming off IR.
+
+    For each droppable player, projects the team's total fantasy points over the next 4 weeks
+    of the real NHL schedule (best lineup every day) and expected goalie starts per week.
+    Options that would fall below the weekly goalie-start minimum are ranked last.
+
+    Args:
+        activate_player: Name of the rostered IR player being activated, e.g. "Seth Jarvis".
+    """
+    try:
+        return json.dumps(fantasy.drop_analysis(activate_player))
+    except ValueError as e:
+        return json.dumps({'error': str(e)})
+
+
+@beta_tool
 def get_team_game_counts() -> str:
     """Get how many games every NHL team plays this fantasy week (Mon-Sun) and how many
     remain from today, sorted by games remaining. Useful for finding streaming targets."""
@@ -98,7 +116,8 @@ def run(question):
         # If Claude declines a request, retry it automatically on a fallback model
         betas=["server-side-fallback-2026-07-01"],
         fallbacks="default",
-        tools=[get_week_overview, get_player_stats, get_team_game_counts],
+        tools=[get_week_overview, get_player_stats, evaluate_drop_candidates,
+               get_team_game_counts],
         messages=[{"role": "user", "content": f"Today is {date.today().isoformat()}. {question}"}],
     )
 
