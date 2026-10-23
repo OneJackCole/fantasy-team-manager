@@ -1,4 +1,3 @@
 requests
 claude-agent-sdk
 yahoo_oauth
-yahoo_fantasy_api

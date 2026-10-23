@@ -7,6 +7,7 @@ from pathlib import Path
 
 import nhl_api
 import scoring
+import yahoo_api
 
 LEAGUES_DIR = Path(__file__).parent / 'leagues'
 DEFAULT_LEAGUE = 'work'
@@ -19,13 +20,29 @@ def available_leagues():
     return sorted(p.stem for p in LEAGUES_DIR.glob('*.json'))
 
 
-def load_roster(league=DEFAULT_LEAGUE):
-    """Roster, scoring and settings for one league, from leagues/<league>.json."""
+def load_roster(league=DEFAULT_LEAGUE, day=None):
+    """Settings for one league from leagues/<league>.json, with the roster and lineup on `day`
+    (default today) read live from Yahoo when credentials are set up.
+
+    Without Yahoo, or if the Yahoo call fails, the players listed in the league file are used.
+    `source` says which ('yahoo' or 'file'); `source_error` says why Yahoo wasn't used.
+    """
     path = LEAGUES_DIR / f"{league}.json"
     if not path.exists():
         raise ValueError(f"Unknown league {league!r}. Available: {', '.join(available_leagues())}")
     with open(path, 'r', encoding='utf-8') as f:
-        return json.load(f)
+        roster = json.load(f)
+    roster['source'] = 'file'
+    if yahoo_api.available() and roster.get('team_name'):
+        try:
+            key = yahoo_api.team_key(roster['team_name'])
+            live = yahoo_api.roster(key, (day or date.today()).isoformat())
+            # Copies, so callers can't change the cached response
+            roster.update({group: [dict(p) for p in players] for group, players in live.items()})
+            roster['source'] = 'yahoo'
+        except Exception as e:  # fall back to the file rather than lose the whole report
+            roster['source_error'] = f"Couldn't read the roster from Yahoo ({type(e).__name__}: {e})"
+    return roster
 
 
 def team_label(roster):
@@ -41,6 +58,9 @@ def can_fill(player, slot):
     eligible = player['eligible_positions']
     if slot == 'Util':
         return 'G' not in eligible
+    if slot == 'W':
+        # Yahoo may list wingers as LW/RW even in leagues with W slots
+        return any(p in eligible for p in ('W', 'LW', 'RW'))
     return slot in eligible
 
 
@@ -336,11 +356,12 @@ def last_night(day=None, league=DEFAULT_LEAGUE):
     """Each rostered player's fantasy points from their game on `day` (default yesterday),
     and the best lineup in hindsight.
 
-    Who was actually started isn't known (no Yahoo access), so nothing here assumes the
-    league file's lineup is the one that played. The file only says who is rostered and on IR.
+    With Yahoo, the roster is the one you had on `day`, and `your_points` is what your
+    lineup actually scored. Without it, who was started isn't known, so nothing assumes the
+    league file's lineup is the one that played; the file only says who is rostered and on IR.
     """
     day = day or date.today() - timedelta(days=1)
-    roster = load_roster(league)
+    roster = load_roster(league, day)
     rules = roster.get('league', {}).get('scoring', {})
     players = all_players(roster)
     slots = lineup_slots(players, roster.get('league', {}).get('roster_positions'))
@@ -373,6 +394,11 @@ def last_night(day=None, league=DEFAULT_LEAGUE):
               for r in sorted(results, key=lambda r: -r['value']) if id(r) not in in_best]
     return {
         'date': day.isoformat(),
+        'source': roster['source'],
+        # What the lineup you set actually scored - only known with Yahoo
+        'your_points': (round(sum(r['value'] for r in results
+                                  if r['position'] not in INACTIVE_SLOTS), 1)
+                        if roster['source'] == 'yahoo' else None),
         'best_lineup': lineup,
         'best_points': round(sum(r['points'] for r in lineup), 1),
         'others': others,
@@ -467,6 +493,8 @@ def week_analysis(today=None, league=DEFAULT_LEAGUE):
         'week': f"{days[0]} to {days[-1]}",
         'team_name': team_label(roster),
         'league': settings,
+        'roster_source': roster['source'],
+        'roster_error': roster.get('source_error'),
         'players': players,
         'daily': daily,
         'goalie_starts': goalie_starts,

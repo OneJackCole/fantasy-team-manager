@@ -18,7 +18,9 @@ Each league has its own file in `leagues/`:
 - `work.json` - work league (the default)
 - `pushing_pucks.json` - Pushing Pucks
 
-Keep each file's roster up to date with your lineup (slot in `position`, e.g. `C`, `LW`, `W`, `Util`, `D`, `G`, `BN`, `IR`).
+`team_name` must match your team's name on Yahoo: with Yahoo set up (see below), the roster
+and lineup are read live from it. Otherwise the file's roster is used - keep it up to date with
+your lineup (slot in `position`, e.g. `C`, `LW`, `W`, `Util`, `D`, `G`, `BN`, `IR`).
 League settings live in `league`:
 
 - `scoring` - keys are NHL API stat names, e.g. `goals`, `powerPlayPoints`, `shots`, `hits`, `blockedShots`, `saves`.
@@ -70,23 +72,29 @@ One-time setup:
    The briefing then runs on your Claude subscription (no API billing). Without the secret, or if
    Claude fails, the email goes out without it. `python daily_email.py --preview --briefing`
    tries it locally with your own Claude Code login.
-4. **Test it.** Actions tab -> Daily fantasy email -> Run workflow.
-
-The email reads rosters from the league files on GitHub, so push roster changes after
-adds and drops.
+4. **Yahoo (optional).** Add `YAHOO_CONSUMER_KEY`, `YAHOO_CONSUMER_SECRET` and
+   `YAHOO_REFRESH_TOKEN` secrets (the values in your local `oauth2.json`, see below) for live
+   rosters and lineups. Without them, the rosters in the league files are used.
+5. **Test it.** Actions tab -> Daily fantasy email -> Run workflow.
 
 ## Files
 
-- `leagues/*.json` - one file per league: settings, scoring and roster
+- `leagues/*.json` - one file per league: settings, scoring and a fallback roster
 - `nhl_api.py` - public NHL API client (schedule, player search, stats, hits/blocks)
+- `yahoo_api.py` - read-only Yahoo Fantasy client for your rosters and lineups
 - `scoring.py` - expected fantasy points per game from a league's scoring rules
-- `fantasy.py` - roster + schedule analysis: best lineup for each day, goalie start tracking
+- `fantasy.py` - roster + schedule analysis: best lineup for each day, goalie appearances
 - `agent.py` - Claude agent with tools over the above
 - `daily_email.py` - morning email report, sent by the GitHub Actions workflow
-- `test_yahoo.py` - Yahoo Fantasy API connection test (blocked pending Yahoo API approval)
+- `test_yahoo.py` - one-time Yahoo sign-in and connection check
 
 ## Yahoo
 
-Since July 2026 Yahoo returns 403 for apps not approved through its developer access program,
-so rosters are maintained by hand in `leagues/` for now. `oauth2.json` holds Yahoo
-credentials and is git-ignored.
+1. Put your Yahoo app's credentials in `oauth2.json` (git-ignored):
+   `{"consumer_key": "...", "consumer_secret": "..."}`
+2. Run `python test_yahoo.py`. It opens Yahoo's sign-in, saves the tokens to `oauth2.json`,
+   and checks each league file's `team_name` against your Yahoo teams.
+
+Yahoo data is fetched live on each run and never written to disk or committed - don't commit
+anything retrieved from Yahoo. Fantasy data provided by
+[Yahoo Fantasy](https://sports.yahoo.com/fantasy/).
