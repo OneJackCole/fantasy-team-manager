@@ -331,6 +331,44 @@ def print_drop_report(activate_name, league=DEFAULT_LEAGUE):
               f"{r['goalie_starts_per_week']:>12.1f}{flag}")
 
 
+def last_night(day=None, league=DEFAULT_LEAGUE):
+    """Each rostered player's fantasy points from their game on `day` (default yesterday).
+
+    `active` reflects the slot in the league file now, which is the lineup they played in
+    unless it was changed since.
+    """
+    day = day or date.today() - timedelta(days=1)
+    roster = load_roster(league)
+    rules = roster.get('league', {}).get('scoring', {})
+    results = []
+    for p in all_players(roster):
+        nhl = nhl_api.find_player(p['name'], nhl_api.normalize_team(p['nhl_team']))
+        stats = nhl and nhl_api.get_game_stats(nhl['id'], day.isoformat())
+        if not stats:
+            continue
+        goalie = 'G' in p['eligible_positions']
+        line = (f"{stats.get('wins', 0) and 'W' or 'no W'}, {stats.get('saves', 0)} SV, "
+                f"{stats.get('goalsAgainst', 0)} GA" + (", SO" if stats.get('shutouts') else '')
+                if goalie else
+                f"{stats.get('goals', 0)}G {stats.get('assists', 0)}A "
+                f"{stats.get('plusMinus', 0):+d} {stats.get('powerPlayPoints', 0)}PPP "
+                f"{stats.get('shots', 0)}SOG {stats.get('hits', 0)}HIT {stats.get('blockedShots', 0)}BLK")
+        results.append({
+            'name': p['name'],
+            'position': p['position'],
+            'active': p['position'] not in INACTIVE_SLOTS,
+            'points': round(scoring.fantasy_points(stats, scoring.rules_for(rules, goalie)), 1),
+            'line': line,
+        })
+    results.sort(key=lambda r: (not r['active'], -r['points']))
+    return {
+        'date': day.isoformat(),
+        'players': results,
+        'active_points': round(sum(r['points'] for r in results if r['active']), 1),
+        'bench_points': round(sum(r['points'] for r in results if not r['active']), 1),
+    }
+
+
 def week_analysis(today=None, league=DEFAULT_LEAGUE):
     """Everything the agent needs to reason about this fantasy week."""
     today = today or date.today()

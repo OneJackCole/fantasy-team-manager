@@ -148,6 +148,33 @@ def get_game_log(player_id):
     return _get(f"{WEB_API}/player/{player_id}/game-log/now").get('gameLog', [])
 
 
+@lru_cache(maxsize=32)
+def get_boxscore(game_id):
+    return _get(f"{WEB_API}/gamecenter/{game_id}/boxscore")
+
+
+def get_game_stats(player_id, day):
+    """A player's stats for his game on `day` (ISO date), keyed like season totals, or None.
+
+    The game log has most stats; hits and blocks come from the box score.
+    """
+    game = next((g for g in get_game_log(player_id) if g.get('gameDate') == day), None)
+    if game is None:
+        return None
+    stats = {k: v for k, v in game.items()
+             if isinstance(v, (int, float)) and not isinstance(v, bool)}
+    stats['gamesPlayed'] = 1
+    if 'shotsAgainst' in stats:
+        stats['saves'] = stats['shotsAgainst'] - stats.get('goalsAgainst', 0)
+        stats['wins'] = int(game.get('decision') == 'W')
+    else:
+        teams = get_boxscore(game['gameId']).get('playerByGameStats', {}).values()
+        for row in (r for team in teams for group in ('forwards', 'defense') for r in team.get(group, [])):
+            if row.get('playerId') == player_id:
+                stats.update({k: row.get(k, 0) for k in REALTIME_STATS})
+    return stats
+
+
 @lru_cache(maxsize=1)
 def get_team_games_played():
     """{team_abbrev: games played this season} from the current standings."""

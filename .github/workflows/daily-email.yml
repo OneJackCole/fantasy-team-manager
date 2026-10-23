@@ -1,0 +1,47 @@
+name: Daily fantasy email
+
+on:
+  schedule:
+    # 8 AM Eastern is 12:00 UTC in daylight time and 13:00 UTC in standard time.
+    # Both run; the gate below lets through only the one that is 8 AM in New York today.
+    - cron: '0 12 * * *'
+    - cron: '0 13 * * *'
+  workflow_dispatch:  # "Run workflow" button for a test send
+
+jobs:
+  email:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check it's the 8 AM Eastern run
+        id: gate
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          if [ -z "$SCHEDULE" ]; then echo "send=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          hour=$(echo "$SCHEDULE" | cut -d' ' -f2)
+          ny_hour=$(TZ=America/New_York date -d "$(date -u +%F) ${hour}:00 UTC" +%-H)
+          echo "Cron hour ${hour} UTC is ${ny_hour}:00 in New York"
+          if [ "$ny_hour" = "8" ]; then echo "send=true" >> "$GITHUB_OUTPUT"; fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.send == 'true'
+
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.send == 'true'
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        if: steps.gate.outputs.send == 'true'
+        run: pip install requests
+
+      - name: Send email
+        if: steps.gate.outputs.send == 'true'
+        env:
+          TZ: America/New_York
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: python daily_email.py

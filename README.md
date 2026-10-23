@@ -49,6 +49,28 @@ python fantasy.py --league pushing_pucks
 python agent.py --league pushing_pucks "Who should I stream at D?"
 ```
 
+## Morning email
+
+`daily_email.py` emails last night's fantasy points and today's best lineup for every league,
+plus alerts (an IR player who played, a traded player, goalie starts below the minimum).
+`python daily_email.py --preview` writes `daily_email.html` without sending.
+
+It runs every day at 8 AM Eastern on GitHub Actions (`.github/workflows/daily-email.yml`).
+One-time setup:
+
+1. **Gmail app password.** Google account -> Security -> turn on 2-Step Verification if it isn't,
+   then go to https://myaccount.google.com/apppasswords, name it "fantasy email", and copy the
+   16-character password.
+2. **GitHub secrets.** In the repo on GitHub: Settings -> Secrets and variables -> Actions ->
+   New repository secret, three times:
+   - `GMAIL_ADDRESS` - the Gmail address
+   - `GMAIL_APP_PASSWORD` - the app password (spaces are fine)
+   - `EMAIL_TO` - where to send it (optional; defaults to `GMAIL_ADDRESS`, comma-separate several)
+3. **Test it.** Actions tab -> Daily fantasy email -> Run workflow.
+
+The email reads rosters from the league files on GitHub, so push roster changes after
+adds and drops.
+
 ## Files
 
 - `leagues/*.json` - one file per league: settings, scoring and roster
@@ -56,6 +78,7 @@ python agent.py --league pushing_pucks "Who should I stream at D?"
 - `scoring.py` - expected fantasy points per game from a league's scoring rules
 - `fantasy.py` - roster + schedule analysis: best lineup for each day, goalie start tracking
 - `agent.py` - Claude agent with tools over the above
+- `daily_email.py` - morning email report, sent by the GitHub Actions workflow
 - `test_yahoo.py` - Yahoo Fantasy API connection test (blocked pending Yahoo API approval)
 
 ## Yahoo
