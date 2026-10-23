@@ -121,6 +121,7 @@ def add_value(player, rules, week_days):
     if nhl is None:
         player.update(value=0.0, value_basis=NOT_FOUND)
         return
+    player['nhl_id'] = nhl['id']
     if nhl['team'] and nhl['team'] != team:
         player['team_mismatch'] = f"NHL lists {player['name']} on {nhl['team']}"
     if 'G' in player['eligible_positions']:

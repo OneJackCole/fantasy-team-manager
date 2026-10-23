@@ -11,6 +11,10 @@ import nhl_api
 PRIOR_GAMES = 20
 FULL_SEASON = 82
 MIN_PRIOR_GAMES = 20
+# Goalie start share: team games of prior to blend in, and the prior when last season
+# doesn't give one
+START_PRIOR_GAMES = 8
+TANDEM_START_RATE = 0.5
 
 
 def rules_for(scoring, goalie):
@@ -72,11 +76,18 @@ def goalie_value(player_id, team, scoring):
 
     cur_starts = cur.get('gamesStarted', 0)
     prev_starts = prev.get('gamesStarted', 0)
-    prior_start_rate = prev_starts / FULL_SEASON if prev_starts else None
     prior_pts_per_start = (fantasy_points(prev, scoring) / prev_starts
                            if prev_starts else None)
 
-    start_rate = min(1.0, _blend(cur_starts, team_gp, prior_start_rate))
+    # A goalie's role changes faster than his quality, so the start share leans on this
+    # season, borrows only from last season (an older one says little about the current
+    # depth chart), and otherwise assumes a 50/50 tandem until starts accumulate.
+    last_season = nhl_api.current_season() - 10001
+    prior_start_rate = (min(1.0, prev_starts / FULL_SEASON)
+                        if prev_starts and prev.get('season') == last_season
+                        else TANDEM_START_RATE)
+    start_rate = min(1.0, (cur_starts + START_PRIOR_GAMES * prior_start_rate)
+                     / (team_gp + START_PRIOR_GAMES))
     pts_per_start = _blend(fantasy_points(cur, scoring), cur_starts, prior_pts_per_start)
     return {
         'value': round(start_rate * pts_per_start, 3),

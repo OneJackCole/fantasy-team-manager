@@ -10,6 +10,9 @@ WEB_API = "https://api-web.nhle.com/v1"
 SEARCH_API = "https://search.d3.nhle.com/api/v1/search/player"
 STATS_API = "https://api.nhle.com/stats/rest/en"
 
+# Numeric fields in season rows that are identifiers, not stats to add up across teams
+ID_FIELDS = {'season', 'sequence', 'gameTypeId'}
+
 # Skater stats only the stats API has, merged in by get_realtime_totals
 REALTIME_STATS = ('hits', 'blockedShots')
 
@@ -119,8 +122,10 @@ def get_season_totals(player_id):
     for row in _landing(player_id).get('seasonTotals', []):
         if row.get('leagueAbbrev') != 'NHL' or row.get('gameTypeId') != 2:
             continue
-        season = totals.setdefault(row['season'], {})
+        season = totals.setdefault(row['season'], {'season': row['season']})
         for key, value in row.items():
+            if key in ID_FIELDS:
+                continue
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 season[key] = season.get(key, 0) + value
     for season in totals.values():

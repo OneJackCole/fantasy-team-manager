@@ -4,6 +4,7 @@ Usage:
     python daily_email.py                 # send (needs GMAIL_ADDRESS and GMAIL_APP_PASSWORD)
     python daily_email.py --preview       # write daily_email.html instead of sending
     python daily_email.py --briefing      # add a Claude briefing at the top (needs Claude Code)
+    python daily_email.py --track         # also record projections (see tracking.py)
 
 Environment:
     GMAIL_ADDRESS       Gmail account that sends the email
@@ -23,9 +24,11 @@ from email.message import EmailMessage
 from html import escape
 
 import fantasy
+import tracking
 from fantasy import slot_type
 
 PREVIEW_FILE = 'daily_email.html'
+MAIL_SECRETS = {'GMAIL_ADDRESS', 'GMAIL_APP_PASSWORD', 'EMAIL_TO'}
 
 STYLE = {
     'body': "font-family:-apple-system,Segoe UI,Arial,sans-serif;color:#1a1a1a;max-width:640px",
@@ -173,8 +176,10 @@ def claude_briefing(text, leagues):
     settings = {league: fantasy.load_roster(league).get('league', {}) for league in leagues}
     context = f"League settings:\n{json.dumps(settings, indent=1)}\n\nThis morning's report:\n{text}"
     try:
+        # Claude reads NHL-sourced text, so keep the mail credentials out of its environment
+        env = {k: v for k, v in os.environ.items() if k not in MAIL_SECRETS}
         result = subprocess.run([claude, '-p', BRIEFING_PROMPT], input=context, capture_output=True,
-                                text=True, encoding='utf-8', timeout=300)
+                                text=True, encoding='utf-8', timeout=300, env=env)
     except subprocess.TimeoutExpired:
         print("Briefing skipped: Claude Code timed out", file=sys.stderr)
         return None
@@ -237,6 +242,11 @@ def send(subject, html, text):
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
     subject, html, text = build(briefing='--briefing' in sys.argv)
+    if '--track' in sys.argv:
+        try:
+            tracking.update()
+        except Exception as e:  # tracking must never stop the email
+            print(f"Tracking skipped: {e!r}", file=sys.stderr)
     if not os.environ.get('GMAIL_APP_PASSWORD') and os.environ.get('CI'):
         sys.exit("GMAIL_ADDRESS / GMAIL_APP_PASSWORD secrets are not set")
     if '--preview' in sys.argv or not os.environ.get('GMAIL_APP_PASSWORD'):

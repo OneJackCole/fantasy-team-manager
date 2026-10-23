@@ -8,6 +8,9 @@ on:
     - cron: '0 13 * * *'
   workflow_dispatch:  # "Run workflow" button for a test send
 
+permissions:
+  contents: write  # commit the projection tracking files
+
 jobs:
   email:
     runs-on: ubuntu-latest
@@ -24,14 +27,13 @@ jobs:
           echo "Cron hour ${hour} UTC is ${ny_hour}:00 in New York"
           if [ "$ny_hour" = "8" ]; then echo "send=true" >> "$GITHUB_OUTPUT"; fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         if: steps.gate.outputs.send == 'true'
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         if: steps.gate.outputs.send == 'true'
         with:
           python-version: '3.12'
-          cache: pip
 
       - name: Install dependencies
         if: steps.gate.outputs.send == 'true'
@@ -51,8 +53,21 @@ jobs:
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
+          args="--track"
           if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
-            python daily_email.py --briefing
+            args="$args --briefing"
           else
-            python daily_email.py
+            echo "CLAUDE_CODE_OAUTH_TOKEN is not set - sending without the briefing"
           fi
+          python daily_email.py $args
+
+      - name: Save projection tracking
+        if: steps.gate.outputs.send == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tracking
+          if git diff --cached --quiet; then echo "Nothing to save"; exit 0; fi
+          git commit -m "Track projections $(TZ=America/New_York date +%F)"
+          git pull --rebase
+          git push
