@@ -1,0 +1,41 @@
+{
+  "team_name": "Yer Sister Is Aho's",
+  "league": {
+    "name": "Pushing Pucks",
+    "league_id": 26378,
+    "format": "Head-to-head points, 16 teams, competitive",
+    "scoring": {
+      "skaters": {"goals": 6, "assists": 4, "plusMinus": 2, "powerPlayPoints": 2, "shots": 0.9, "hits": 1, "blockedShots": 1},
+      "goalies": {"wins": 5, "goalsAgainst": -3, "saves": 0.6, "shutouts": 5}
+    },
+    "roster_positions": ["C", "C", "LW", "LW", "RW", "RW", "D", "D", "D", "D", "G", "G", "BN", "BN", "BN", "BN", "IR", "IR", "IR+"],
+    "min_goalie_starts_per_week": 3,
+    "max_acquisitions_per_week": 4,
+    "notes": "Scoring keys are NHL API stat names. Goalie minimum is appearances, not starts. Waivers: 2 days, continual rolling list. Lineups lock daily. Injured free agents can go straight to IR. Trade deadline Mar 3, 2027. Playoffs: 8 teams, weeks 24-26."
+  },
+  "forwards": [
+    {"name": "Sam Bennett", "nhl_team": "FLA", "position": "C", "eligible_positions": ["C"], "status": "Active"},
+    {"name": "Connor Bedard", "nhl_team": "CHI", "position": "C", "eligible_positions": ["C", "RW"], "status": "Active"},
+    {"name": "Kyle Connor", "nhl_team": "WPG", "position": "LW", "eligible_positions": ["LW"], "status": "Active"},
+    {"name": "Adam Edstrom", "nhl_team": "NSH", "position": "LW", "eligible_positions": ["C", "LW"], "status": "Active"},
+    {"name": "Adrian Kempe", "nhl_team": "LA", "position": "RW", "eligible_positions": ["RW"], "status": "Active"},
+    {"name": "Michael Brandsegg-Nygård", "nhl_team": "DET", "position": "RW", "eligible_positions": ["RW"], "status": "Active"},
+    {"name": "Fraser Minten", "nhl_team": "BOS", "position": "BN", "eligible_positions": ["C"], "status": "Bench"},
+    {"name": "Valeri Nichushkin", "nhl_team": "CBJ", "position": "BN", "eligible_positions": ["LW", "RW"], "status": "Bench"},
+    {"name": "Sebastian Aho", "nhl_team": "CAR", "position": "BN", "eligible_positions": ["C"], "status": "Bench"},
+    {"name": "Steven Stamkos", "nhl_team": "NSH", "position": "BN", "eligible_positions": ["C", "RW"], "status": "Bench"},
+    {"name": "Ryan Nugent-Hopkins", "nhl_team": "EDM", "position": "IR", "eligible_positions": ["C", "LW"], "status": "IR"},
+    {"name": "Bryan Rust", "nhl_team": "PIT", "position": "IR+", "eligible_positions": ["RW"], "status": "IR"}
+  ],
+  "defensemen": [
+    {"name": "Roman Josi", "nhl_team": "NSH", "position": "D", "eligible_positions": ["D"], "status": "Active"},
+    {"name": "Nikita Zadorov", "nhl_team": "BOS", "position": "D", "eligible_positions": ["D"], "status": "Active"},
+    {"name": "Sean Walker", "nhl_team": "CAR", "position": "D", "eligible_positions": ["D"], "status": "Active"},
+    {"name": "Cale Makar", "nhl_team": "COL", "position": "D", "eligible_positions": ["D"], "status": "Active"}
+  ],
+  "goalies": [
+    {"name": "Devon Levi", "nhl_team": "EDM", "position": "G", "eligible_positions": ["G"], "status": "Active"},
+    {"name": "Joseph Woll", "nhl_team": "PHI", "position": "G", "eligible_positions": ["G"], "status": "Active"},
+    {"name": "Connor Hellebuyck", "nhl_team": "WPG", "position": "IR", "eligible_positions": ["G"], "status": "IR-NR"}
+  ]
+}

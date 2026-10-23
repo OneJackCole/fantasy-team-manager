@@ -1,6 +1,8 @@
-"""Expected fantasy points per game, from the league's scoring rules in roster.json.
+"""Expected fantasy points per game, from a league's scoring rules (leagues/<league>.json).
 
 Scoring keys are NHL API stat names, e.g. {"goals": 1, "assists": 1, "wins": 1, "shutouts": 2}.
+A league can score skaters and goalies separately:
+{"skaters": {"goals": 6, ...}, "goalies": {"wins": 5, ...}}.
 """
 import nhl_api
 
@@ -9,6 +11,13 @@ import nhl_api
 PRIOR_GAMES = 20
 FULL_SEASON = 82
 MIN_PRIOR_GAMES = 20
+
+
+def rules_for(scoring, goalie):
+    """The scoring rules that apply to a skater or a goalie."""
+    if 'skaters' in scoring or 'goalies' in scoring:
+        return scoring.get('goalies' if goalie else 'skaters', {})
+    return scoring
 
 
 def fantasy_points(stats, scoring):
@@ -22,13 +31,17 @@ def _blend(current_pts, current_games, prior_rate):
     return (current_pts + PRIOR_GAMES * prior_rate) / (current_games + PRIOR_GAMES)
 
 
-def _seasons(player_id):
+def _seasons(player_id, scoring):
     """(this season's totals, most recent earlier season with a real sample).
 
     Skipping short seasons keeps an injury year from setting the baseline.
     """
     totals = nhl_api.get_season_totals(player_id)
-    season = nhl_api.current_season(player_id)
+    if any(stat in scoring for stat in nhl_api.REALTIME_STATS):
+        for season, extra in nhl_api.get_realtime_totals(player_id).items():
+            if season in totals:
+                totals[season] = {**totals[season], **extra}
+    season = nhl_api.current_season()
     cur = totals.get(season, {})
     earlier = [s for s in sorted(totals, reverse=True)
                if s != season and totals[s].get('gamesPlayed', 0) >= MIN_PRIOR_GAMES]
@@ -37,7 +50,8 @@ def _seasons(player_id):
 
 
 def skater_value(player_id, scoring):
-    cur, prev = _seasons(player_id)
+    scoring = rules_for(scoring, goalie=False)
+    cur, prev = _seasons(player_id, scoring)
 
     prior = (fantasy_points(prev, scoring) / prev['gamesPlayed']
              if prev.get('gamesPlayed') else None)
@@ -52,7 +66,8 @@ def skater_value(player_id, scoring):
 
 def goalie_value(player_id, team, scoring):
     """Expected points per *team* game: how often he starts x points per start."""
-    cur, prev = _seasons(player_id)
+    scoring = rules_for(scoring, goalie=True)
+    cur, prev = _seasons(player_id, scoring)
     team_gp = nhl_api.get_team_games_played().get(team, 0)
 
     cur_starts = cur.get('gamesStarted', 0)

@@ -1,8 +1,9 @@
 """Fantasy hockey agent: Claude + NHL data tools.
 
 Usage:
-    python agent.py                      # daily briefing
+    python agent.py                      # daily briefing (Work League)
     python agent.py "Should I start Forsberg tonight?"
+    python agent.py --league pushing_pucks "Who should I stream at D?"
 """
 import json
 import sys
@@ -16,10 +17,15 @@ import nhl_api
 
 MODEL = "claude-opus-5-5"
 
+# Which leagues/<name>.json the tools read; set from --league in main()
+LEAGUE = fantasy.DEFAULT_LEAGUE
+
 SYSTEM_PROMPT = """You are a fantasy hockey assistant managing a Yahoo fantasy hockey team \
 for the user. You give concise, practical advice: who to start, who to sit, and where the \
-schedule creates an edge. The league's format, scoring rules, and goalie-start minimum are in \
-the `league` field of get_week_overview.
+schedule creates an edge. The league's name, format, scoring rules, roster positions, goalie \
+minimum, acquisition limits, and other notes are in the `league` field of get_week_overview. \
+Scoring differs a lot between leagues (some reward hits, blocks, shots, and saves, and penalize \
+goals against), so reason from that league's rules, not generic fantasy value.
 
 How to work:
 - Start with get_week_overview. Each player has a `value`: expected fantasy points per game
@@ -31,7 +37,9 @@ How to work:
 - Use get_team_game_counts when suggesting pickups or streamers by schedule.
 - When a player comes off IR, use evaluate_drop_candidates to decide who to drop.
 - Players in BN can be swapped into an active slot only if their eligible_positions fit that slot \
-(Util takes any skater). Players in IR/IR+ slots are injured and can't play.
+(Util, where the league has it, takes any skater). Players in IR/IR+ slots are injured and can't \
+play.
+- If the league has max_acquisitions_per_week, keep pickup suggestions within it.
 
 Limits you must respect:
 - You do NOT know which players are free agents in the user's league. When you suggest a pickup, \
@@ -39,7 +47,7 @@ frame it as "if available" and suggest checking the waiver wire.
 - You have no injury news or confirmed starting goalies beyond what the stats show. Say so when \
 it matters (especially for goalie starts).
 - If a player's NHL team in the stats differs from the roster file, point it out - they were \
-probably traded and roster.json needs updating. (Yahoo and NHL abbreviations like NJ/NJD and \
+probably traded and the league's roster file needs updating. (Yahoo and NHL abbreviations like NJ/NJD and \
 TB/TBL are the same team - don't flag those.)
 
 Format: plain text for a terminal. Lead with the actionable moves for today, then the rest of \
@@ -56,7 +64,7 @@ def get_week_overview() -> str:
     to bench, slot moves, and projected points vs. the current lineup. Also projects goalie
     starts for the week against the league minimum.
     """
-    return json.dumps(fantasy.week_analysis())
+    return json.dumps(fantasy.week_analysis(league=LEAGUE))
 
 
 @beta_tool
@@ -85,7 +93,7 @@ def evaluate_drop_candidates(activate_player: str) -> str:
         activate_player: Name of the rostered IR player being activated, e.g. "Seth Jarvis".
     """
     try:
-        return json.dumps(fantasy.drop_analysis(activate_player))
+        return json.dumps(fantasy.drop_analysis(activate_player, LEAGUE))
     except ValueError as e:
         return json.dumps({'error': str(e)})
 
@@ -132,8 +140,14 @@ def run(question):
 
 
 def main():
+    global LEAGUE
     sys.stdout.reconfigure(encoding='utf-8')
-    question = " ".join(sys.argv[1:]) or "Give me my daily briefing for my fantasy team."
+    args = sys.argv[1:]
+    LEAGUE = fantasy.pop_league_arg(args)
+    if not fantasy.all_players(fantasy.load_roster(LEAGUE)):
+        print(f"No players in leagues/{LEAGUE}.json yet - add the roster first.")
+        return
+    question = " ".join(args) or "Give me my daily briefing for my fantasy team."
     try:
         print(run(question))
     except anthropic.AuthenticationError:

@@ -8,6 +8,10 @@ import requests
 
 WEB_API = "https://api-web.nhle.com/v1"
 SEARCH_API = "https://search.d3.nhle.com/api/v1/search/player"
+STATS_API = "https://api.nhle.com/stats/rest/en"
+
+# Skater stats only the stats API has, merged in by get_realtime_totals
+REALTIME_STATS = ('hits', 'blockedShots')
 
 # Yahoo-style abbreviations -> NHL API abbreviations
 TEAM_ALIASES = {
@@ -104,6 +108,22 @@ def get_season_totals(player_id):
         for key, value in row.items():
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 season[key] = season.get(key, 0) + value
+    for season in totals.values():
+        if 'shotsAgainst' in season:
+            season['saves'] = season['shotsAgainst'] - season.get('goalsAgainst', 0)
+    return totals
+
+
+@lru_cache(maxsize=64)
+def get_realtime_totals(player_id):
+    """Hits and blocked shots by season id - the player endpoints don't carry them."""
+    data = _get(f"{STATS_API}/skater/realtime", isAggregate='false', isGame='false',
+                cayenneExp=f"playerId={player_id} and gameTypeId=2")
+    totals = {}
+    for row in data.get('data', []):
+        season = totals.setdefault(row['seasonId'], {})
+        for key in REALTIME_STATS:
+            season[key] = season.get(key, 0) + (row.get(key) or 0)
     return totals
 
 
@@ -120,8 +140,15 @@ def get_team_games_played():
     return {row['teamAbbrev']['default']: row['gamesPlayed'] for row in data['standings']}
 
 
-def current_season(player_id):
-    return _landing(player_id).get('featuredStats', {}).get('season')
+def current_season(day=None):
+    """Season id for `day`, e.g. 20262027. Seasons start in September.
+
+    Not taken from a player's featured stats: for a player who hasn't played yet this
+    season (injured), those still point at last season.
+    """
+    day = day or date.today()
+    start = day.year if day.month >= 9 else day.year - 1
+    return int(f"{start}{start + 1}")
 
 
 def get_player_stats(player_id):

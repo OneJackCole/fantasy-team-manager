@@ -2,18 +2,32 @@
 import json
 import sys
 from datetime import date, timedelta
+from pathlib import Path
 
 import nhl_api
 import scoring
 
-ROSTER_FILE = 'roster.json'
+LEAGUES_DIR = Path(__file__).parent / 'leagues'
+DEFAULT_LEAGUE = 'work'
 INACTIVE_SLOTS = {'BN', 'IR', 'IR+'}
 INJURED_SLOTS = {'IR', 'IR+'}
 
 
-def load_roster():
-    with open(ROSTER_FILE, 'r', encoding='utf-8') as f:
+def available_leagues():
+    return sorted(p.stem for p in LEAGUES_DIR.glob('*.json'))
+
+
+def load_roster(league=DEFAULT_LEAGUE):
+    """Roster, scoring and settings for one league, from leagues/<league>.json."""
+    path = LEAGUES_DIR / f"{league}.json"
+    if not path.exists():
+        raise ValueError(f"Unknown league {league!r}. Available: {', '.join(available_leagues())}")
+    with open(path, 'r', encoding='utf-8') as f:
         return json.load(f)
+
+
+def team_label(roster):
+    return roster.get('team_name') or roster.get('league', {}).get('name', 'My team')
 
 
 def all_players(roster):
@@ -33,11 +47,23 @@ def slot_type(slot):
     return slot.rstrip('0123456789')
 
 
-def lineup_slots(players):
-    """Active lineup slots, inferred from where players sit now, e.g. ['C1', 'C2', 'W1', ...]."""
-    order = ['C', 'W', 'Util', 'D', 'G']
-    counts = {slot: sum(1 for p in players if p['position'] == slot) for slot in order}
-    return [f"{slot}{i + 1}" for slot in order for i in range(counts[slot])]
+def lineup_slots(players, roster_positions=None):
+    """Active lineup slots, e.g. ['C1', 'C2', 'W1', ...].
+
+    Taken from the league's roster_positions when it lists them, otherwise inferred from
+    where players sit now.
+    """
+    if roster_positions:
+        active = [s for s in roster_positions if s not in INACTIVE_SLOTS]
+    else:
+        order = ['C', 'LW', 'RW', 'W', 'Util', 'D', 'G']
+        active = [slot for slot in order for p in players if p['position'] == slot]
+    seen = {}
+    slots = []
+    for slot in active:
+        seen[slot] = seen.get(slot, 0) + 1
+        slots.append(f"{slot}{seen[slot]}")
+    return slots
 
 
 def optimal_lineup(playing, slots):
@@ -105,14 +131,14 @@ def add_value(player, rules, week_days):
     player.update(value=v['value'], value_basis=v['basis'])
 
 
-def drop_analysis(activate_name, weeks=4, today=None):
+def drop_analysis(activate_name, league=DEFAULT_LEAGUE, weeks=4, today=None):
     """Who to drop to activate a player from IR.
 
     For each droppable player, projects total fantasy points over the next `weeks` weeks
     of the real NHL schedule (optimal lineup every day) with `activate_name` on the roster.
     """
     today = today or date.today()
-    roster = load_roster()
+    roster = load_roster(league)
     rules = roster.get('league', {}).get('scoring', {})
     players = [dict(p) for p in all_players(roster)]
 
@@ -122,7 +148,7 @@ def drop_analysis(activate_name, weeks=4, today=None):
         raise ValueError(f"{activate_name} is not on the roster")
 
     # Slots come from the current lineup, before anything moves
-    slots = lineup_slots(players)
+    slots = lineup_slots(players, roster.get('league', {}).get('roster_positions'))
     target['position'] = 'BN'
 
     first_week = nhl_api.week_start(today)
@@ -160,7 +186,7 @@ def drop_analysis(activate_name, weeks=4, today=None):
             'value_per_game': drop['value'],
             'projected_points': round(points, 1),
             'goalie_starts_per_week': round(goalie_starts, 1),
-            'meets_goalie_minimum': goalie_starts >= min_starts,
+            'meets_goalie_minimum': round(goalie_starts, 1) >= min_starts,
         })
     # Options that keep the goalie minimum first, then by projected points
     results.sort(key=lambda r: (not r['meets_goalie_minimum'], -r['projected_points']))
@@ -169,6 +195,7 @@ def drop_analysis(activate_name, weeks=4, today=None):
         r['points_lost_vs_best'] = round(best - r['projected_points'], 1)
 
     return {
+        'league': roster.get('league', {}).get('name', league),
         'activate': target['name'],
         'activate_value_per_game': target['value'],
         'horizon': f"{days[0].isoformat()} to {days[-1].isoformat()}",
@@ -177,10 +204,10 @@ def drop_analysis(activate_name, weeks=4, today=None):
     }
 
 
-def print_drop_report(activate_name):
+def print_drop_report(activate_name, league=DEFAULT_LEAGUE):
     sys.stdout.reconfigure(encoding='utf-8')
-    a = drop_analysis(activate_name)
-    print(f"Activating {a['activate']} ({a['activate_value_per_game']:.2f} pts/G)  |  "
+    a = drop_analysis(activate_name, league)
+    print(f"{a['league']}  |  Activating {a['activate']} ({a['activate_value_per_game']:.2f} pts/G)  |  "
           f"projection {a['horizon']}")
     print('-' * 64)
     print(f"{'Drop':<22} {'Slot':<5} {'Pts/G':>6} {'Team pts':>9} {'Lost':>6} {'G starts/wk':>12}")
@@ -191,15 +218,15 @@ def print_drop_report(activate_name):
               f"{r['goalie_starts_per_week']:>12.1f}{flag}")
 
 
-def week_analysis(today=None):
+def week_analysis(today=None, league=DEFAULT_LEAGUE):
     """Everything the agent needs to reason about this fantasy week."""
     today = today or date.today()
     start = nhl_api.week_start(today)
     schedule = nhl_api.get_week_schedule(start)
     days = [(start + timedelta(days=i)).isoformat() for i in range(7)]
-    roster = load_roster()
-    league = roster.get('league', {})
-    rules = league.get('scoring', {})
+    roster = load_roster(league)
+    settings = roster.get('league', {})
+    rules = settings.get('scoring', {})
 
     players = []
     for p in all_players(roster):
@@ -215,7 +242,7 @@ def week_analysis(today=None):
         add_value(player, rules, days)
         players.append(player)
 
-    slots = lineup_slots(players)
+    slots = lineup_slots(players, settings.get('roster_positions'))
     daily = []
     for day in days:
         if day < today.isoformat():
@@ -257,7 +284,7 @@ def week_analysis(today=None):
 
     # Goalie minimum: starts already made plus expected starts on remaining lineup days.
     # Today counts as remaining unless the game log already shows a start today.
-    goalie_starts = {'minimum': league.get('min_goalie_starts_per_week'), 'goalies': []}
+    goalie_starts = {'minimum': settings.get('min_goalie_starts_per_week'), 'goalies': []}
     for g in players:
         if 'starts_this_week' not in g:
             continue
@@ -276,18 +303,21 @@ def week_analysis(today=None):
     return {
         'today': today.isoformat(),
         'week': f"{days[0]} to {days[-1]}",
-        'team_name': roster['team_name'],
-        'league': league,
+        'team_name': team_label(roster),
+        'league': settings,
         'players': players,
         'daily': daily,
         'goalie_starts': goalie_starts,
     }
 
 
-def print_report(today=None):
+def print_report(today=None, league=DEFAULT_LEAGUE):
     sys.stdout.reconfigure(encoding='utf-8')
-    a = week_analysis(today)
-    print(f"{a['team_name']}  |  week {a['week']}  |  today {a['today']}")
+    a = week_analysis(today, league)
+    if not a['players']:
+        print(f"No players in leagues/{league}.json yet - add the roster to get a report.")
+        return
+    print(f"{a['league'].get('name', league)}  |  {a['team_name']}  |  week {a['week']}  |  today {a['today']}")
     print('-' * 64)
     print(f"{'Slot':<5} {'Player':<22} {'Team':<4} {'Week':>4} {'Left':>4} {'Pts/G':>6}")
     for p in a['players']:
@@ -327,8 +357,24 @@ def print_report(today=None):
         + (f" (minimum {gs['minimum']})" if gs['minimum'] else ''))
 
 
+def pop_league_arg(args):
+    """Remove `--league NAME` from an argv list and return NAME (or the default)."""
+    if '--league' in args:
+        i = args.index('--league')
+        if i + 1 >= len(args):
+            sys.exit(f"--league needs a name: {', '.join(available_leagues())}")
+        league = args[i + 1]
+        del args[i:i + 2]
+        if league not in available_leagues():
+            sys.exit(f"Unknown league {league!r}. Available: {', '.join(available_leagues())}")
+        return league
+    return DEFAULT_LEAGUE
+
+
 if __name__ == '__main__':
-    if len(sys.argv) >= 3 and sys.argv[1] == 'drop':
-        print_drop_report(' '.join(sys.argv[2:]))
+    args = sys.argv[1:]
+    league = pop_league_arg(args)
+    if len(args) >= 2 and args[0] == 'drop':
+        print_drop_report(' '.join(args[1:]), league)
     else:
-        print_report()
+        print_report(league=league)
