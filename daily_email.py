@@ -3,14 +3,20 @@
 Usage:
     python daily_email.py                 # send (needs GMAIL_ADDRESS and GMAIL_APP_PASSWORD)
     python daily_email.py --preview       # write daily_email.html instead of sending
+    python daily_email.py --briefing      # add a Claude briefing at the top (needs Claude Code)
 
 Environment:
     GMAIL_ADDRESS       Gmail account that sends the email
     GMAIL_APP_PASSWORD  App password for that account (not the normal password)
     EMAIL_TO            Recipient(s), comma-separated; defaults to GMAIL_ADDRESS
+    CLAUDE_CODE_OAUTH_TOKEN  For --briefing on a machine where Claude Code isn't logged in
+                        (from `claude setup-token`; runs on the Claude subscription, not the API)
 """
+import json
 import os
+import shutil
 import smtplib
+import subprocess
 import sys
 from datetime import date, timedelta
 from email.message import EmailMessage
@@ -30,6 +36,7 @@ STYLE = {
     'num': "padding:3px 0 3px 8px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap",
     'muted': "color:#888",
     'alert': "background:#fff4e5;border-left:3px solid #e8890c;padding:6px 10px;margin:6px 0;font-size:13px",
+    'briefing': "background:#f3f3f6;border-radius:6px;padding:10px 14px;margin:8px 0 4px;font-size:14px",
     'action': "background:#eaf4ea;border-left:3px solid #2e7d32;padding:6px 10px;margin:6px 0;font-size:13px",
 }
 
@@ -147,13 +154,51 @@ def league_section(league, today):
     return '\n'.join(h), '\n'.join(t), alerts
 
 
-def build(today=None):
+BRIEFING_PROMPT = """You write the top of a fantasy hockey manager's morning email. Below are \
+each league's settings (scoring keys are NHL stat names) and this morning's report: last night's \
+fantasy points, today's projected best lineup, goalie starts against the weekly minimum, and alerts.
+
+Write a briefing of at most 6 short bullet lines across all leagues, most important first: lineup \
+moves to make today, alerts that need action, and anything notable from last night (a big night \
+left on the bench, a goalie-minimum risk). Name the league on each line. Don't repeat the full \
+lineup and don't invent news, injuries or confirmed goalies the report doesn't contain. Plain text \
+only: each line starts with "- ", no markdown, no heading, no sign-off. Answer directly without \
+using any tools."""
+
+
+def claude_briefing(text, leagues):
+    """A short briefing from Claude Code (`claude -p`), or None if it isn't available or fails.
+
+    Uses Claude Code's own login (or CLAUDE_CODE_OAUTH_TOKEN), so it runs on the Claude
+    subscription rather than API billing.
+    """
+    claude = shutil.which('claude')
+    if claude is None:
+        print("Briefing skipped: Claude Code (`claude`) is not installed", file=sys.stderr)
+        return None
+    settings = {league: fantasy.load_roster(league).get('league', {}) for league in leagues}
+    context = f"League settings:\n{json.dumps(settings, indent=1)}\n\nThis morning's report:\n{text}"
+    try:
+        result = subprocess.run([claude, '-p', BRIEFING_PROMPT], input=context, capture_output=True,
+                                text=True, encoding='utf-8', timeout=300)
+    except subprocess.TimeoutExpired:
+        print("Briefing skipped: Claude Code timed out", file=sys.stderr)
+        return None
+    if result.returncode != 0 or not result.stdout.strip():
+        print(f"Briefing skipped: Claude Code failed: {(result.stderr or result.stdout).strip()[:500]}",
+              file=sys.stderr)
+        return None
+    return result.stdout.strip()
+
+
+def build(today=None, briefing=False):
     """(subject, html, text) for all leagues."""
     today = today or date.today()
-    html_parts, text_parts, alert_count = [], [], 0
+    html_parts, text_parts, alert_count, leagues = [], [], 0, []
     for league in fantasy.available_leagues():
         if not fantasy.all_players(fantasy.load_roster(league)):
             continue
+        leagues.append(league)
         try:
             h, t, alerts = league_section(league, today)
         except Exception as e:  # one league failing shouldn't sink the whole email
@@ -163,6 +208,14 @@ def build(today=None):
         html_parts.append(h)
         text_parts.append(t)
         alert_count += len(alerts)
+    summary = claude_briefing('\n\n'.join(text_parts), leagues) if briefing else None
+    if summary:
+        lines = [line.strip().lstrip('-* ').strip() for line in summary.splitlines() if line.strip()]
+        html_parts.insert(0, f"<div style='{STYLE['briefing']}'><b>Briefing</b><ul style='margin:6px 0 0;"
+                             "padding-left:18px'>"
+                          + ''.join(f"<li style='margin:3px 0'>{escape(line)}</li>" for line in lines)
+                          + "</ul></div>")
+        text_parts.insert(0, "Briefing\n" + '\n'.join(f"- {line}" for line in lines))
     day = today.strftime('%a %b %d')
     subject = f"Fantasy hockey - {day}" + (f" ({alert_count} to check)" if alert_count else '')
     html = (f"<html><body style='{STYLE['body']}'>" + '\n'.join(html_parts)
@@ -189,7 +242,7 @@ def send(subject, html, text):
 
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
-    subject, html, text = build()
+    subject, html, text = build(briefing='--briefing' in sys.argv)
     if not os.environ.get('GMAIL_APP_PASSWORD') and os.environ.get('CI'):
         sys.exit("GMAIL_ADDRESS / GMAIL_APP_PASSWORD secrets are not set")
     if '--preview' in sys.argv or not os.environ.get('GMAIL_APP_PASSWORD'):

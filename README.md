@@ -66,7 +66,12 @@ One-time setup:
    - `GMAIL_ADDRESS` - the Gmail address
    - `GMAIL_APP_PASSWORD` - the app password (spaces are fine)
    - `EMAIL_TO` - where to send it (optional; defaults to `GMAIL_ADDRESS`, comma-separate several)
-3. **Test it.** Actions tab -> Daily fantasy email -> Run workflow.
+3. **Claude briefing (optional).** Run `claude setup-token` in a terminal and sign in with your
+   Claude account, then add the token it prints as a fourth secret, `CLAUDE_CODE_OAUTH_TOKEN`.
+   The briefing then runs on your Claude subscription (no API billing). Without the secret, or if
+   Claude fails, the email goes out without it. `python daily_email.py --preview --briefing`
+   tries it locally with your own Claude Code login.
+4. **Test it.** Actions tab -> Daily fantasy email -> Run workflow.
 
 The email reads rosters from the league files on GitHub, so push roster changes after
 adds and drops.

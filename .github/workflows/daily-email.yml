@@ -37,6 +37,11 @@ jobs:
         if: steps.gate.outputs.send == 'true'
         run: pip install requests
 
+      # For the Claude briefing; runs on the Claude subscription via CLAUDE_CODE_OAUTH_TOKEN
+      - name: Install Claude Code
+        if: steps.gate.outputs.send == 'true'
+        run: npm install -g @anthropic-ai/claude-code
+
       - name: Send email
         if: steps.gate.outputs.send == 'true'
         env:
@@ -44,4 +49,10 @@ jobs:
           GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
-        run: python daily_email.py
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            python daily_email.py --briefing
+          else
+            python daily_email.py
+          fi
