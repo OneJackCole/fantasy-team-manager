@@ -332,16 +332,19 @@ def print_drop_report(activate_name, league=DEFAULT_LEAGUE):
 
 
 def last_night(day=None, league=DEFAULT_LEAGUE):
-    """Each rostered player's fantasy points from their game on `day` (default yesterday).
+    """Each rostered player's fantasy points from their game on `day` (default yesterday),
+    and the best lineup in hindsight.
 
-    `active` reflects the slot in the league file now, which is the lineup they played in
-    unless it was changed since.
+    Who was actually started isn't known (no Yahoo access), so nothing here assumes the
+    league file's lineup is the one that played. The file only says who is rostered and on IR.
     """
     day = day or date.today() - timedelta(days=1)
     roster = load_roster(league)
     rules = roster.get('league', {}).get('scoring', {})
+    players = all_players(roster)
+    slots = lineup_slots(players, roster.get('league', {}).get('roster_positions'))
     results = []
-    for p in all_players(roster):
+    for p in players:
         nhl = nhl_api.find_player(p['name'], nhl_api.normalize_team(p['nhl_team']))
         stats = nhl and nhl_api.get_game_stats(nhl['id'], day.isoformat())
         if not stats:
@@ -354,18 +357,25 @@ def last_night(day=None, league=DEFAULT_LEAGUE):
                 f"{stats.get('plusMinus', 0):+d} {stats.get('powerPlayPoints', 0)}PPP "
                 f"{stats.get('shots', 0)}SOG {stats.get('hits', 0)}HIT {stats.get('blockedShots', 0)}BLK")
         results.append({
-            'name': p['name'],
-            'position': p['position'],
-            'active': p['position'] not in INACTIVE_SLOTS,
-            'points': round(scoring.fantasy_points(stats, scoring.rules_for(rules, goalie)), 1),
+            **p,
+            'value': round(scoring.fantasy_points(stats, scoring.rules_for(rules, goalie)), 1),
             'line': line,
         })
-    results.sort(key=lambda r: (not r['active'], -r['points']))
+
+    # Best lineup by actual points; nobody who scored negative helps it
+    best = optimal_lineup([r for r in results if r['value'] >= 0], slots)
+    in_best = {id(r) for r in best.values()}
+    lineup = [{'slot': slot_type(s), 'name': best[s]['name'], 'points': best[s]['value'],
+               'line': best[s]['line']} for s in slots if s in best]
+    others = [{'slot': r['position'] if r['position'] in INJURED_SLOTS else '', 'name': r['name'],
+               'points': r['value'], 'line': r['line']}
+              for r in sorted(results, key=lambda r: -r['value']) if id(r) not in in_best]
     return {
         'date': day.isoformat(),
-        'players': results,
-        'active_points': round(sum(r['points'] for r in results if r['active']), 1),
-        'bench_points': round(sum(r['points'] for r in results if not r['active']), 1),
+        'best_lineup': lineup,
+        'best_points': round(sum(r['points'] for r in lineup), 1),
+        'others': others,
+        'injured_played': [r['name'] for r in results if r['position'] in INJURED_SLOTS],
     }
 
 

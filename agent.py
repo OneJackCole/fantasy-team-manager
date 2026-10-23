@@ -1,16 +1,20 @@
 """Fantasy hockey agent: Claude + NHL data tools.
 
+Runs through Claude Code (the Claude Agent SDK), so it uses your Claude subscription rather
+than API billing. Needs Claude Code installed and logged in, or CLAUDE_CODE_OAUTH_TOKEN set.
+
 Usage:
     python agent.py                      # daily briefing (Work League)
     python agent.py "Should I start Forsberg tonight?"
     python agent.py --league pushing_pucks "Who should I stream at D?"
 """
+import asyncio
 import json
 import sys
 from datetime import date
 
-import anthropic
-from anthropic import beta_tool
+from claude_agent_sdk import (ClaudeAgentOptions, ClaudeSDKError, CLINotFoundError, ResultMessage,
+                              create_sdk_mcp_server, query, tool)
 
 import fantasy
 import nhl_api
@@ -54,73 +58,93 @@ TB/TBL are the same team - don't flag those.)
 Format: plain text for a terminal. Lead with the actionable moves for today, then the rest of \
 the week, then anything worth watching. Keep it short."""
 
+TOOLS = []
 
-@beta_tool
-def get_week_overview() -> str:
-    """Get the user's fantasy roster with this week's NHL schedule.
 
-    Returns each player's lineup slot, eligible positions, NHL team, games this week and
-    games remaining, and expected fantasy points per game (`value`). For each remaining day:
-    the lineup with the highest expected points, which bench players to start, which starters
-    to bench, slot moves, and projected points vs. the current lineup. Also projects goalie
-    starts for the week against the league minimum.
-    """
+def fantasy_tool(name, description, input_schema):
+    """Register fn(args) -> JSON string as a tool for the agent."""
+    def register(fn):
+        async def handler(args):
+            return {"content": [{"type": "text", "text": fn(args)}]}
+        TOOLS.append(tool(name, description, input_schema)(handler))
+        return fn
+    return register
+
+
+@fantasy_tool(
+    "get_week_overview",
+    "Get the user's fantasy roster with this week's NHL schedule. Returns each player's lineup "
+    "slot, eligible positions, NHL team, games this week and games remaining, and expected "
+    "fantasy points per game (`value`). For each remaining day: the lineup with the highest "
+    "expected points, which bench players to start, which starters to bench, slot moves, and "
+    "projected points vs. the current lineup. Also projects goalie starts for the week against "
+    "the league minimum.",
+    {})
+def get_week_overview(args):
     return json.dumps(fantasy.week_analysis(league=LEAGUE))
 
 
-@beta_tool
-def get_player_stats(name: str, team: str = "") -> str:
-    """Get current-season stats and the last 5 games for an NHL player.
-
-    Args:
-        name: Player's full name, e.g. "Filip Forsberg".
-        team: Optional NHL team abbreviation to disambiguate players with the same name.
-    """
-    player = nhl_api.find_player(name, team or None)
+@fantasy_tool(
+    "get_player_stats",
+    "Get current-season stats and the last 5 games for an NHL player.",
+    {"type": "object",
+     "properties": {
+         "name": {"type": "string", "description": "Player's full name, e.g. \"Filip Forsberg\"."},
+         "team": {"type": "string", "description": "Optional NHL team abbreviation to "
+                                                   "disambiguate players with the same name."}},
+     "required": ["name"]})
+def get_player_stats(args):
+    name = args['name']
+    player = nhl_api.find_player(name, args.get('team') or None)
     if player is None:
         return json.dumps({'error': f"No active NHL player found named {name!r}"})
     return json.dumps(nhl_api.get_player_stats(player['id']))
 
 
-@beta_tool
-def evaluate_drop_candidates(activate_player: str) -> str:
-    """Rank who to drop to make room for a player coming off IR.
-
-    For each droppable player, projects the team's total fantasy points over the next 4 weeks
-    of the real NHL schedule (best lineup every day) and expected goalie starts per week.
-    Options that would fall below the weekly goalie-start minimum are ranked last.
-
-    Args:
-        activate_player: Name of the rostered IR player being activated, e.g. "Seth Jarvis".
-    """
+@fantasy_tool(
+    "evaluate_drop_candidates",
+    "Rank who to drop to make room for a player coming off IR. For each droppable player, "
+    "projects the team's total fantasy points over the next 4 weeks of the real NHL schedule "
+    "(best lineup every day) and expected goalie starts per week. Options that would fall below "
+    "the weekly goalie-start minimum are ranked last.",
+    {"type": "object",
+     "properties": {
+         "activate_player": {"type": "string", "description": "Name of the rostered IR player "
+                                                              "being activated, e.g. \"Seth Jarvis\"."}},
+     "required": ["activate_player"]})
+def evaluate_drop_candidates(args):
     try:
-        return json.dumps(fantasy.drop_analysis(activate_player, LEAGUE))
+        return json.dumps(fantasy.drop_analysis(args['activate_player'], LEAGUE))
     except ValueError as e:
         return json.dumps({'error': str(e)})
 
 
-@beta_tool
-def evaluate_pickups(players: str) -> str:
-    """Rank free agents by how much each would add, and who to drop for each.
-
-    For each player, projects the team's total fantasy points over the next 4 weeks with them
-    added in place of each droppable player, keeps the best swap, and reports the gain over
-    the current roster and expected goalie starts per week.
-
-    Args:
-        players: Free agents, one per line as "Name TEAM - POS,POS", e.g.
-            "Jack Roslovic TOR - C,RW". Text copied from a Yahoo player list also works.
-    """
-    candidates = fantasy.parse_players(players)
+@fantasy_tool(
+    "evaluate_pickups",
+    "Rank free agents by how much each would add, and who to drop for each. For each player, "
+    "projects the team's total fantasy points over the next 4 weeks with them added in place of "
+    "each droppable player, keeps the best swap, and reports the gain over the current roster "
+    "and expected goalie starts per week.",
+    {"type": "object",
+     "properties": {
+         "players": {"type": "string", "description": "Free agents, one per line as "
+                                                      "\"Name TEAM - POS,POS\", e.g. \"Jack Roslovic "
+                                                      "TOR - C,RW\". Text copied from a Yahoo player "
+                                                      "list also works."}},
+     "required": ["players"]})
+def evaluate_pickups(args):
+    candidates = fantasy.parse_players(args['players'])
     if not candidates:
         return json.dumps({'error': "No players found. Use lines like 'Jack Roslovic TOR - C,RW'."})
     return json.dumps(fantasy.pickup_analysis(candidates, LEAGUE))
 
 
-@beta_tool
-def get_team_game_counts() -> str:
-    """Get how many games every NHL team plays this fantasy week (Mon-Sun) and how many
-    remain from today, sorted by games remaining. Useful for finding streaming targets."""
+@fantasy_tool(
+    "get_team_game_counts",
+    "Get how many games every NHL team plays this fantasy week (Mon-Sun) and how many remain "
+    "from today, sorted by games remaining. Useful for finding streaming targets.",
+    {})
+def get_team_game_counts(args):
     today = date.today().isoformat()
     schedule = nhl_api.get_week_schedule(nhl_api.week_start())
     counts = [{
@@ -133,29 +157,27 @@ def get_team_game_counts() -> str:
     return json.dumps(counts)
 
 
-def run(question):
-    client = anthropic.Anthropic()
-    runner = client.beta.messages.tool_runner(
+async def run(question):
+    options = ClaudeAgentOptions(
         model=MODEL,
-        max_tokens=16000,
-        system=SYSTEM_PROMPT,
-        output_config={"effort": "medium"},
-        # If Claude declines a request, retry it automatically on a fallback model
-        betas=["server-side-fallback-2026-07-01"],
-        fallbacks="default",
-        tools=[get_week_overview, get_player_stats, evaluate_drop_candidates,
-               evaluate_pickups, get_team_game_counts],
-        messages=[{"role": "user", "content": f"Today is {date.today().isoformat()}. {question}"}],
+        system_prompt=SYSTEM_PROMPT,
+        effort="medium",
+        mcp_servers={"fantasy": create_sdk_mcp_server(name="fantasy", tools=TOOLS)},
+        tools=[],  # no built-in Claude Code tools (files, shell, web), only ours
+        allowed_tools=[f"mcp__fantasy__{t.name}" for t in TOOLS],
+        setting_sources=[],  # ignore local Claude Code settings and CLAUDE.md
+        max_turns=30,
     )
-
-    final = None
-    for message in runner:
-        final = message
-    if final is None:
+    result = None
+    async for message in query(prompt=f"Today is {date.today().isoformat()}. {question}",
+                               options=options):
+        if isinstance(message, ResultMessage):
+            result = message
+    if result is None:
         return "No response from Claude."
-    if final.stop_reason == "refusal":
-        return "Claude declined to answer this request."
-    return "\n".join(block.text for block in final.content if block.type == "text")
+    if result.is_error:
+        return f"Claude failed: {result.result or result.subtype}"
+    return result.result
 
 
 def main():
@@ -168,11 +190,12 @@ def main():
         return
     question = " ".join(args) or "Give me my daily briefing for my fantasy team."
     try:
-        print(run(question))
-    except anthropic.AuthenticationError:
-        print("Anthropic API key missing or invalid. Set the ANTHROPIC_API_KEY environment variable.")
-    except anthropic.APIConnectionError:
-        print("Couldn't reach the Anthropic API. Check your internet connection.")
+        print(asyncio.run(run(question)))
+    except CLINotFoundError:
+        print("Claude Code isn't installed. Install it, then run `claude` and /login.")
+    except ClaudeSDKError as e:
+        print(f"Claude Code failed: {e}\nIf you're not logged in, run `claude` and /login "
+              "(or set CLAUDE_CODE_OAUTH_TOKEN from `claude setup-token`).")
 
 
 if __name__ == '__main__':

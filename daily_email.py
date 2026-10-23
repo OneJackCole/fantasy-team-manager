@@ -23,7 +23,7 @@ from email.message import EmailMessage
 from html import escape
 
 import fantasy
-from fantasy import INJURED_SLOTS, slot_type
+from fantasy import slot_type
 
 PREVIEW_FILE = 'daily_email.html'
 
@@ -54,9 +54,9 @@ def league_section(league, today):
     alerts = []
 
     # Injured-slot players who played are probably ready to come back
-    for p in night['players']:
-        if p['position'] in INJURED_SLOTS:
-            alerts.append(f"{p['name']} played last night from {p['position']} - ready to activate?")
+    for pname in night['injured_played']:
+        alerts.append(f"{pname} played last night but is on IR in the roster file - "
+                      "activated? If so, update the file.")
     for p in week['players']:
         if p.get('team_mismatch'):
             alerts.append(f"{p['team_mismatch']} - update the roster file.")
@@ -85,47 +85,39 @@ def league_section(league, today):
     nd = f"{played:%a %b} {played.day}"
     h.append(f"<h3 style='{s['h3']}'>Last night ({nd})</h3>")
     t.append(f"\nLast night ({nd})")
-    if night['players']:
-        summary = f"{fmt(night['active_points'])} pts from your lineup"
-        if night['bench_points'] > 0:
-            summary += f", {fmt(night['bench_points'])} left on the bench/IR"
+    if night['best_lineup'] or night['others']:
+        summary = f"Best possible lineup: {fmt(night['best_points'])} pts"
         h.append(f"<p style='margin:0 0 6px;font-size:14px'><b>{escape(summary)}</b></p>"
                  f"<table style='{s['table']}'>")
         t.append(summary)
-        for p in night['players']:
-            muted = '' if p['active'] else s['muted']
-            h.append(f"<tr style='{muted}'><td style='{s['td']}'>{escape(p['position'])}</td>"
+        rows = [(r, '') for r in night['best_lineup']] + [(r, s['muted']) for r in night['others']]
+        for i, (p, muted) in enumerate(rows):
+            if i == len(night['best_lineup']) and night['others']:
+                h.append(f"<tr><td colspan='4' style='{s['td']};{s['muted']};padding-top:8px'>"
+                         "Also played (no room, or on IR)</td></tr>")
+                t.append("  Also played (no room, or on IR):")
+            h.append(f"<tr style='{muted}'><td style='{s['td']}'>{escape(p['slot'])}</td>"
                      f"<td style='{s['td']}'>{escape(p['name'])}</td>"
                      f"<td style='{s['td']};color:#666'>{escape(p['line'])}</td>"
                      f"<td style='{s['num']}'><b>{fmt(p['points'])}</b></td></tr>")
-            t.append(f"  {p['position']:<5} {p['name']:<26} {fmt(p['points']):>6}  {p['line']}")
+            t.append(f"  {p['slot']:<5} {p['name']:<26} {fmt(p['points']):>6}  {p['line']}")
         h.append("</table>")
     else:
         h.append(f"<p style='{s['muted']};font-size:13px'>Nobody played.</p>")
         t.append("  Nobody played.")
 
     # Today
-    h.append(f"<h3 style='{s['h3']}'>Today's lineup</h3>")
-    t.append("\nToday's lineup")
+    # Today. Only players with a game are listed: who sits in the other slots doesn't matter.
+    h.append(f"<h3 style='{s['h3']}'>Today's best lineup</h3>")
+    t.append("\nToday's best lineup")
     if today_plan is None or not today_plan['players_in_lineup_with_games']:
         h.append(f"<p style='{s['muted']};font-size:13px'>No games for your players today.</p>")
         t.append("  No games for your players today.")
     else:
-        moves = []
-        if today_plan['start']:
-            moves.append(f"Start {', '.join(today_plan['start'])}; bench {', '.join(today_plan['sit'])}")
-        if today_plan['moved_slots']:
-            moves.append(f"Move {', '.join(today_plan['moved_slots'])}")
         summary = (f"{today_plan['players_in_lineup_with_games']} with games, "
                    f"~{today_plan['projected_points']:.1f} projected pts")
-        if moves:
-            summary += f" (current lineup: ~{today_plan['current_lineup_projected_points']:.1f})"
         h.append(f"<p style='margin:0 0 6px;font-size:14px'><b>{escape(summary)}</b></p>")
         t.append(summary)
-        for m in moves or ["No changes needed."]:
-            h.append(f"<div style='{s['action'] if moves else s['muted']};font-size:13px'>"
-                     f"{escape(m)}</div>")
-            t.append(f"  {m}")
         value = {p['name']: p['value'] for p in week['players']}
         has_game = {p['name'] for p in week['players'] if today.isoformat() in p['game_dates']}
         opponent = {p['name']: next((('vs ' if g['home'] else '@ ') + g['opponent']
@@ -133,14 +125,13 @@ def league_section(league, today):
                     for p in week['players']}
         h.append(f"<table style='{s['table']};margin-top:6px'>")
         for slot, pname in today_plan['optimal_lineup'].items():
-            playing = pname in has_game
-            note = f"{value[pname]:.2f}" if playing else ('no game' if pname else '')
-            h.append(f"<tr style='{'' if playing else s['muted']}'>"
-                     f"<td style='{s['td']}'>{slot_type(slot)}</td>"
-                     f"<td style='{s['td']}'>{escape(pname or '-')}</td>"
-                     f"<td style='{s['td']};color:#666'>{escape(opponent.get(pname, ''))}</td>"
-                     f"<td style='{s['num']}'>{note}</td></tr>")
-            t.append(f"  {slot_type(slot):<5} {pname or '-':<26} {opponent.get(pname, ''):<8} {note}")
+            if pname not in has_game:
+                continue
+            h.append(f"<tr><td style='{s['td']}'>{slot_type(slot)}</td>"
+                     f"<td style='{s['td']}'>{escape(pname)}</td>"
+                     f"<td style='{s['td']};color:#666'>{escape(opponent[pname])}</td>"
+                     f"<td style='{s['num']}'>{value[pname]:.2f}</td></tr>")
+            t.append(f"  {slot_type(slot):<5} {pname:<26} {opponent[pname]:<8} {value[pname]:.2f}")
         h.append("</table>")
         if today_plan['playing_but_no_slot']:
             line = f"Playing but no room: {', '.join(today_plan['playing_but_no_slot'])}"
@@ -156,11 +147,14 @@ def league_section(league, today):
 
 BRIEFING_PROMPT = """You write the top of a fantasy hockey manager's morning email. Below are \
 each league's settings (scoring keys are NHL stat names) and this morning's report: last night's \
-fantasy points, today's projected best lineup, goalie starts against the weekly minimum, and alerts.
+fantasy points and the best lineup in hindsight, today's projected best lineup, goalie starts \
+against the weekly minimum, and alerts. Nobody knows which players the manager actually started, \
+so never say a player was started, benched, or left on the bench.
 
-Write a briefing of at most 6 short bullet lines across all leagues, most important first: lineup \
-moves to make today, alerts that need action, and anything notable from last night (a big night \
-left on the bench, a goalie-minimum risk). Name the league on each line. Don't repeat the full \
+Write a briefing of at most 6 short bullet lines across all leagues, most important first: who \
+should be in today's lineup (especially close calls), alerts that need action, and anything \
+notable from last night (standout games, a goalie-minimum risk). Name the league on each line. \
+Don't repeat the full \
 lineup and don't invent news, injuries or confirmed goalies the report doesn't contain. Plain text \
 only: each line starts with "- ", no markdown, no heading, no sign-off. Answer directly without \
 using any tools."""
