@@ -4,7 +4,7 @@ Runs through Claude Code (the Claude Agent SDK), so it uses your Claude subscrip
 than API billing. Needs Claude Code installed and logged in, or CLAUDE_CODE_OAUTH_TOKEN set.
 
 Usage:
-    python agent.py                      # daily briefing (Work League)
+    python agent.py                      # daily briefing (work league)
     python agent.py "Should I start Forsberg tonight?"
     python agent.py --league pushing_pucks "Who should I stream at D?"
 """

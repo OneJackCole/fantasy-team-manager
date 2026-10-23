@@ -15,7 +15,7 @@ a login, set `CLAUDE_CODE_OAUTH_TOKEN` to a token from `claude setup-token`. Lea
 
 Each league has its own file in `leagues/`:
 
-- `work.json` - Work League (the default)
+- `work.json` - work league (the default)
 - `pushing_pucks.json` - Pushing Pucks
 
 Keep each file's roster up to date with your lineup (slot in `position`, e.g. `C`, `LW`, `W`, `Util`, `D`, `G`, `BN`, `IR`).
