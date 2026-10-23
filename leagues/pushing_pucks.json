@@ -1,9 +1,9 @@
 {
-  "team_name": "Yer Sister Is Aho's",
+  "team_name": "Yer Sister is Aho",
   "league": {
     "name": "Pushing Pucks",
     "league_id": 26378,
-    "format": "Head-to-head points, 16 teams, competitive",
+    "format": "Head-to-head points, 14 teams, competitive",
     "scoring": {
       "skaters": {"goals": 6, "assists": 4, "plusMinus": 2, "powerPlayPoints": 2, "shots": 0.9, "hits": 1, "blockedShots": 1},
       "goalies": {"wins": 5, "goalsAgainst": -3, "saves": 0.6, "shutouts": 5}

@@ -1,11 +1,16 @@
 {
-  "team_name": "My Fantasy Squad",
+  "team_name": "Not Sean Avery",
   "league": {
     "name": "Work League",
-    "format": "Head-to-head points",
-    "scoring": {"goals": 1, "assists": 1, "powerPlayPoints": 1, "shorthandedPoints": 1, "wins": 1, "shutouts": 2},
+    "format": "Head-to-head points, 14 teams",
+    "scoring": {
+      "skaters": {"goals": 1, "assists": 1, "powerPlayPoints": 1, "shorthandedPoints": 1},
+      "goalies": {"wins": 1, "shutouts": 2}
+    },
+    "roster_positions": ["C", "C", "W", "W", "W", "W", "D", "D", "D", "D", "Util", "Util", "Util", "G", "G", "BN", "BN", "IR", "IR", "IR+", "IR+"],
     "min_goalie_starts_per_week": 3,
-    "notes": "Scoring keys are NHL API stat names."
+    "max_acquisitions_per_week": 4,
+    "notes": "Scoring keys are NHL API stat names. Goalie minimum is appearances, not starts. Waivers: 1 day, continual rolling list. Lineups lock daily. Injured free agents can't go straight to IR. Trade deadline Mar 3, 2027. Playoffs: 6 teams, weeks 25-27 (week 27 is 6 days, Apr 5-10)."
   },
   "forwards": [
     {"name": "Connor McDavid", "nhl_team": "EDM", "position": "C", "eligible_positions": ["C"], "status": "Active"},

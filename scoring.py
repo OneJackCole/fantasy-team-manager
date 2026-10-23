@@ -98,6 +98,9 @@ def goalie_value(player_id, team, scoring):
 
 
 def goalie_start_dates(player_id, week_dates):
-    """Dates this week the goalie has already started, per his game log."""
+    """Dates this week the goalie has already appeared, per his game log.
+
+    Yahoo's weekly goalie minimum counts appearances, so relief outings count too.
+    """
     return [g['gameDate'] for g in nhl_api.get_game_log(player_id)
-            if g.get('gameDate') in week_dates and g.get('gamesStarted')]
+            if g.get('gameDate') in week_dates]
