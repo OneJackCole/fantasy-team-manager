@@ -8,11 +8,10 @@ An AI agent that monitors a Yahoo fantasy hockey team using public NHL data and 
 pip install -r requirements.txt
 ```
 
-Set an Anthropic API key (get one at https://console.anthropic.com):
-
-```
-setx ANTHROPIC_API_KEY "sk-ant-..."
-```
+`agent.py` runs Claude through Claude Code, so it uses your Claude subscription (Pro/Max), not
+API billing. Install Claude Code and log in once (`claude`, then `/login`). On a machine without
+a login, set `CLAUDE_CODE_OAUTH_TOKEN` to a token from `claude setup-token`. Leave
+`ANTHROPIC_API_KEY` unset: if it's set, Claude Code bills that key instead.
 
 Each league has its own file in `leagues/`:
 
