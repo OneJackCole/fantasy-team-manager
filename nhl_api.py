@@ -76,6 +76,21 @@ def find_player(name, team_hint=None):
     """
     results = _get(SEARCH_API, culture='en-us', limit=20, q=name, active='true')
     matches = [r for r in results if fold_name(r['name']) == fold_name(name)]
+    first, _, last = name.partition(' ')
+    if not matches and first.endswith('.') and last:
+        # Yahoo abbreviates long names: "M. Brandsegg-Nygård"
+        results = _get(SEARCH_API, culture='en-us', limit=20, q=last, active='true')
+        matches = [r for r in results
+                   if fold_name(r['name']).endswith(' ' + fold_name(last))
+                   and fold_name(r['name']).startswith(fold_name(first[:-1]))]
+    if not matches and team_hint and last:
+        # Nicknames ("Freddy" Gaudreau is Frederick): same last name on the same team
+        results = _get(SEARCH_API, culture='en-us', limit=20, q=last, active='true')
+        matches = [r for r in results
+                   if fold_name(r['name']).endswith(' ' + fold_name(last))
+                   and r.get('teamAbbrev') == normalize_team(team_hint)]
+        if len(matches) > 1:
+            matches = []
     if not matches:
         return None
     if team_hint and len(matches) > 1:

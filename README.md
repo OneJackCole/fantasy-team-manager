@@ -36,7 +36,11 @@ python fantasy.py                      # schedule report, no AI, free
 python agent.py                        # Claude daily briefing
 python agent.py "Should I start Dostal on Saturday?"
 python fantasy.py drop Seth Jarvis      # who to drop to activate an IR player
+python fantasy.py pickup waivers.txt    # rank free agents and who to drop for each
 ```
+
+For `pickup`, copy a player list from Yahoo's Players page into a text file (or pipe it in).
+Lines like `Jack Roslovic TOR - C,RW` work too.
 
 Add `--league pushing_pucks` to any of these for the other league:
 

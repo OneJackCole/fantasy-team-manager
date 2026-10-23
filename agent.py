@@ -36,6 +36,7 @@ How to work:
 - Pull get_player_stats for players whose start/sit call is close, or whose recent form matters.
 - Use get_team_game_counts when suggesting pickups or streamers by schedule.
 - When a player comes off IR, use evaluate_drop_candidates to decide who to drop.
+- When the user lists free agents, use evaluate_pickups to rank them and pick drops.
 - Players in BN can be swapped into an active slot only if their eligible_positions fit that slot \
 (Util, where the league has it, takes any skater). Players in IR/IR+ slots are injured and can't \
 play.
@@ -99,6 +100,24 @@ def evaluate_drop_candidates(activate_player: str) -> str:
 
 
 @beta_tool
+def evaluate_pickups(players: str) -> str:
+    """Rank free agents by how much each would add, and who to drop for each.
+
+    For each player, projects the team's total fantasy points over the next 4 weeks with them
+    added in place of each droppable player, keeps the best swap, and reports the gain over
+    the current roster and expected goalie starts per week.
+
+    Args:
+        players: Free agents, one per line as "Name TEAM - POS,POS", e.g.
+            "Jack Roslovic TOR - C,RW". Text copied from a Yahoo player list also works.
+    """
+    candidates = fantasy.parse_players(players)
+    if not candidates:
+        return json.dumps({'error': "No players found. Use lines like 'Jack Roslovic TOR - C,RW'."})
+    return json.dumps(fantasy.pickup_analysis(candidates, LEAGUE))
+
+
+@beta_tool
 def get_team_game_counts() -> str:
     """Get how many games every NHL team plays this fantasy week (Mon-Sun) and how many
     remain from today, sorted by games remaining. Useful for finding streaming targets."""
@@ -125,7 +144,7 @@ def run(question):
         betas=["server-side-fallback-2026-07-01"],
         fallbacks="default",
         tools=[get_week_overview, get_player_stats, evaluate_drop_candidates,
-               get_team_game_counts],
+               evaluate_pickups, get_team_game_counts],
         messages=[{"role": "user", "content": f"Today is {date.today().isoformat()}. {question}"}],
     )
 

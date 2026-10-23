@@ -1,5 +1,6 @@
 """Roster + schedule analysis. Pure Python, no AI - the agent calls into this."""
 import json
+import re
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -11,6 +12,7 @@ LEAGUES_DIR = Path(__file__).parent / 'leagues'
 DEFAULT_LEAGUE = 'work'
 INACTIVE_SLOTS = {'BN', 'IR', 'IR+'}
 INJURED_SLOTS = {'IR', 'IR+'}
+NOT_FOUND = 'player not found in NHL data'
 
 
 def available_leagues():
@@ -117,7 +119,7 @@ def add_value(player, rules, week_days):
     team = nhl_api.normalize_team(player['nhl_team'])
     nhl = nhl_api.find_player(player['name'], team)
     if nhl is None:
-        player.update(value=0.0, value_basis='player not found in NHL data')
+        player.update(value=0.0, value_basis=NOT_FOUND)
         return
     if nhl['team'] and nhl['team'] != team:
         player['team_mismatch'] = f"NHL lists {player['name']} on {nhl['team']}"
@@ -131,26 +133,35 @@ def add_value(player, rules, week_days):
     player.update(value=v['value'], value_basis=v['basis'])
 
 
-def drop_analysis(activate_name, league=DEFAULT_LEAGUE, weeks=4, today=None):
-    """Who to drop to activate a player from IR.
+# A player line from a Yahoo roster or player-list page, copied from the browser, e.g.
+# "Jack RoslovicPlayer Note TOR - C,RW" or "Bryan RustIRNew Player Note PIT - RW".
+# The note text is optional, so a hand-typed "Jack Roslovic TOR - C,RW" works too.
+YAHOO_PLAYER_LINE = re.compile(
+    r"^(?P<name>.+?)\s*(?:IR-LT|IR-NR|IR|DTD|NA|O)?"
+    r"(?:New Player Note|No new player Notes|Player Note)?\s+"
+    r"(?P<team>[A-Z]{2,3}) - (?P<positions>[A-Z]+(?:,[A-Z]+)*)\s*$")
 
-    For each droppable player, projects total fantasy points over the next `weeks` weeks
-    of the real NHL schedule (optimal lineup every day) with `activate_name` on the roster.
+
+def parse_players(text):
+    """Players from text copied off a Yahoo page: [{'name', 'nhl_team', 'eligible_positions'}]."""
+    players = []
+    for line in text.splitlines():
+        m = YAHOO_PLAYER_LINE.match(line.strip())
+        if m:
+            players.append({'name': m['name'].strip(), 'nhl_team': m['team'],
+                            'eligible_positions': m['positions'].split(',')})
+    return players
+
+
+def _projection(roster, players, weeks, today):
+    """Value `players` and return (days, project), where project(roster_players) gives
+    (total expected points, expected goalie starts per week) over the next `weeks` weeks
+    of the real NHL schedule, with the best lineup every day.
+
+    Lineup slots come from the current lineup, so call this before anything moves.
     """
-    today = today or date.today()
-    roster = load_roster(league)
-    rules = roster.get('league', {}).get('scoring', {})
-    players = [dict(p) for p in all_players(roster)]
-
-    target = next((p for p in players if nhl_api.fold_name(p['name']) == nhl_api.fold_name(activate_name)),
-                  None)
-    if target is None:
-        raise ValueError(f"{activate_name} is not on the roster")
-
-    # Slots come from the current lineup, before anything moves
-    slots = lineup_slots(players, roster.get('league', {}).get('roster_positions'))
-    target['position'] = 'BN'
-
+    settings = roster.get('league', {})
+    slots = lineup_slots(players, settings.get('roster_positions'))
     first_week = nhl_api.week_start(today)
     days = [today + timedelta(days=i) for i in range(weeks * 7)]
     week_days = [(first_week + timedelta(days=i)).isoformat() for i in range(7)]
@@ -159,14 +170,14 @@ def drop_analysis(activate_name, league=DEFAULT_LEAGUE, weeks=4, today=None):
         for team, games in nhl_api.get_week_schedule(first_week + timedelta(weeks=w)).items():
             game_dates.setdefault(team, set()).update(g['date'] for g in games)
 
-    for p in players:
-        add_value(p, rules, week_days)
-        p['game_dates'] = sorted(game_dates.get(nhl_api.normalize_team(p['nhl_team']), ()))
+    def prepare(player):
+        add_value(player, settings.get('scoring', {}), week_days)
+        player['game_dates'] = sorted(game_dates.get(nhl_api.normalize_team(player['nhl_team']), ()))
 
-    min_starts = roster.get('league', {}).get('min_goalie_starts_per_week') or 0
+    for p in players:
+        prepare(p)
 
     def project(roster_players):
-        """(total expected points, expected goalie starts per week) over the horizon."""
         total = starts = 0.0
         for day in days:
             playing = [p for p in roster_players if day.isoformat() in p['game_dates']]
@@ -175,9 +186,18 @@ def drop_analysis(activate_name, league=DEFAULT_LEAGUE, weeks=4, today=None):
             starts += sum(p.get('start_rate', 0) for p in lineup)
         return total, starts / weeks
 
-    candidates = [p for p in players if p is not target and p['position'] not in INJURED_SLOTS]
+    return days, prepare, project
+
+
+def _drop_options(players, keep, project, min_starts):
+    """Project the roster `players` minus each droppable player (never one in `keep`).
+
+    Sorted best first: options that keep the goalie minimum, then by projected points.
+    """
     results = []
-    for drop in candidates:
+    for drop in players:
+        if drop in keep or drop['position'] in INJURED_SLOTS:
+            continue
         points, goalie_starts = project([p for p in players if p is not drop])
         results.append({
             'drop': drop['name'],
@@ -188,8 +208,29 @@ def drop_analysis(activate_name, league=DEFAULT_LEAGUE, weeks=4, today=None):
             'goalie_starts_per_week': round(goalie_starts, 1),
             'meets_goalie_minimum': round(goalie_starts, 1) >= min_starts,
         })
-    # Options that keep the goalie minimum first, then by projected points
     results.sort(key=lambda r: (not r['meets_goalie_minimum'], -r['projected_points']))
+    return results
+
+
+def drop_analysis(activate_name, league=DEFAULT_LEAGUE, weeks=4, today=None):
+    """Who to drop to activate a player from IR.
+
+    For each droppable player, projects total fantasy points over the next `weeks` weeks
+    of the real NHL schedule (optimal lineup every day) with `activate_name` on the roster.
+    """
+    today = today or date.today()
+    roster = load_roster(league)
+    players = [dict(p) for p in all_players(roster)]
+
+    target = next((p for p in players if nhl_api.fold_name(p['name']) == nhl_api.fold_name(activate_name)),
+                  None)
+    if target is None:
+        raise ValueError(f"{activate_name} is not on the roster")
+
+    days, _, project = _projection(roster, players, weeks, today)
+    target['position'] = 'BN'
+    min_starts = roster.get('league', {}).get('min_goalie_starts_per_week') or 0
+    results = _drop_options(players, [target], project, min_starts)
     best = results[0]['projected_points']
     for r in results:
         r['points_lost_vs_best'] = round(best - r['projected_points'], 1)
@@ -202,6 +243,78 @@ def drop_analysis(activate_name, league=DEFAULT_LEAGUE, weeks=4, today=None):
         'min_goalie_starts_per_week': min_starts,
         'options': results,
     }
+
+
+def pickup_analysis(candidates, league=DEFAULT_LEAGUE, weeks=4, today=None):
+    """Which free agents are worth adding, and who to drop for each.
+
+    `candidates` are players from parse_players. For each one, projects the team's points
+    over the next `weeks` weeks with them added in place of each droppable player and keeps
+    the best swap. `gain` is that projection minus the current roster's.
+    """
+    today = today or date.today()
+    roster = load_roster(league)
+    settings = roster.get('league', {})
+    players = [dict(p) for p in all_players(roster)]
+    days, prepare, project = _projection(roster, players, weeks, today)
+    min_starts = settings.get('min_goalie_starts_per_week') or 0
+    baseline, baseline_starts = project(players)
+
+    rostered = {nhl_api.fold_name(p['name']) for p in players}
+    results = []
+    for c in candidates:
+        if nhl_api.fold_name(c['name']) in rostered:
+            continue
+        add = {**c, 'position': 'BN'}
+        prepare(add)
+        options = _drop_options(players + [add], [add], project, min_starts)
+        best = options[0]
+        results.append({
+            'add': add['name'],
+            'nhl_team': add['nhl_team'],
+            'eligible_positions': add['eligible_positions'],
+            'value_per_game': add['value'],
+            'value_basis': add.get('value_basis'),
+            'games_in_horizon': sum(1 for d in days if d.isoformat() in add['game_dates']),
+            'team_mismatch': add.get('team_mismatch'),
+            'best_drop': best['drop'],
+            'gain': round(best['projected_points'] - baseline, 1),
+            'goalie_starts_per_week': best['goalie_starts_per_week'],
+            'meets_goalie_minimum': best['meets_goalie_minimum'],
+            'next_best_drops': [o['drop'] for o in options[1:3]],
+        })
+    results.sort(key=lambda r: (not r['meets_goalie_minimum'], -r['gain']))
+    return {
+        'league': settings.get('name', league),
+        'horizon': f"{days[0].isoformat()} to {days[-1].isoformat()}",
+        'current_projected_points': round(baseline, 1),
+        'current_goalie_starts_per_week': round(baseline_starts, 1),
+        'min_goalie_starts_per_week': min_starts,
+        'max_acquisitions_per_week': settings.get('max_acquisitions_per_week'),
+        'options': results,
+    }
+
+
+def print_pickup_report(text, league=DEFAULT_LEAGUE):
+    sys.stdout.reconfigure(encoding='utf-8')
+    candidates = parse_players(text)
+    if not candidates:
+        print("No players found. Paste lines like 'Jack Roslovic TOR - C,RW' from Yahoo.")
+        return
+    a = pickup_analysis(candidates, league)
+    print(f"{a['league']}  |  pickups  |  projection {a['horizon']}  |  current roster "
+          f"{a['current_projected_points']:.1f} pts, {a['current_goalie_starts_per_week']:.1f} "
+          f"G starts/wk (minimum {a['min_goalie_starts_per_week']})")
+    print('-' * 64)
+    print(f"{'Add':<24} {'Team':<4} {'Pos':<6} {'Pts/G':>6} {'GP':>3} {'Gain':>6} "
+          f"{'G st/wk':>7}  Drop")
+    for r in a['options']:
+        flag = '  below goalie minimum' if not r['meets_goalie_minimum'] else ''
+        flag += f"  ! {r['team_mismatch']}" if r['team_mismatch'] else ''
+        flag += f"  ! {r['value_basis']}" if r['value_basis'] == NOT_FOUND else ''
+        print(f"{r['add']:<24} {r['nhl_team']:<4} {','.join(r['eligible_positions']):<6} "
+              f"{r['value_per_game']:>6.2f} {r['games_in_horizon']:>3} {r['gain']:>+6.1f} "
+              f"{r['goalie_starts_per_week']:>7.1f}  {r['best_drop']}{flag}")
 
 
 def print_drop_report(activate_name, league=DEFAULT_LEAGUE):
@@ -376,5 +489,12 @@ if __name__ == '__main__':
     league = pop_league_arg(args)
     if len(args) >= 2 and args[0] == 'drop':
         print_drop_report(' '.join(args[1:]), league)
+    elif args and args[0] == 'pickup':
+        # Players copied from a Yahoo page: from files, or stdin if none are given
+        if len(args) > 1:
+            text = '\n'.join(Path(f).read_text(encoding='utf-8') for f in args[1:])
+        else:
+            text = sys.stdin.read()
+        print_pickup_report(text, league)
     else:
         print_report(league=league)
