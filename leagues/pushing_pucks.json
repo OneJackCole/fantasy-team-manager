@@ -24,7 +24,7 @@
     {"name": "Valeri Nichushkin", "nhl_team": "CBJ", "position": "BN", "eligible_positions": ["LW", "RW"], "status": "Bench"},
     {"name": "Sebastian Aho", "nhl_team": "CAR", "position": "BN", "eligible_positions": ["C"], "status": "Bench"},
     {"name": "Steven Stamkos", "nhl_team": "NSH", "position": "BN", "eligible_positions": ["C", "RW"], "status": "Bench"},
-    {"name": "Ryan Nugent-Hopkins", "nhl_team": "EDM", "position": "IR", "eligible_positions": ["C", "LW"], "status": "IR"},
+    {"name": "Ryan Nugent-Hopkins", "nhl_team": "EDM", "position": "BN", "eligible_positions": ["C", "LW"], "status": "Bench"},
     {"name": "Bryan Rust", "nhl_team": "PIT", "position": "IR+", "eligible_positions": ["RW"], "status": "IR"}
   ],
   "defensemen": [
@@ -34,7 +34,7 @@
     {"name": "Cale Makar", "nhl_team": "COL", "position": "D", "eligible_positions": ["D"], "status": "Active"}
   ],
   "goalies": [
-    {"name": "Devon Levi", "nhl_team": "EDM", "position": "G", "eligible_positions": ["G"], "status": "Active"},
+    {"name": "Devon Levi", "nhl_team": "EDM", "position": "IR", "eligible_positions": ["G"], "status": "IR"},
     {"name": "Joseph Woll", "nhl_team": "PHI", "position": "G", "eligible_positions": ["G"], "status": "Active"},
     {"name": "Connor Hellebuyck", "nhl_team": "WPG", "position": "IR", "eligible_positions": ["G"], "status": "IR-NR"}
   ]
