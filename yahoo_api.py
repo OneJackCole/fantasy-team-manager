@@ -20,6 +20,9 @@ import requests
 FANTASY_API = "https://fantasy.yahooapis.com/fantasy/v2"
 TOKEN_URL = "https://api.login.yahoo.com/oauth2/get_token"
 OAUTH_FILE = Path(__file__).parent / 'oauth2.json'
+# Must match the app's Redirect URI on the Yahoo Developer page exactly. Nothing listens
+# there: after sign-in the browser fails to load it, and the code is in its address bar.
+REDIRECT_URI = 'https://localhost:8080'
 ATTRIBUTION = "Fantasy data provided by Yahoo Fantasy"
 ATTRIBUTION_URL = "https://sports.yahoo.com/fantasy/"
 
@@ -68,7 +71,7 @@ def available():
 def _access_token():
     key, secret, refresh = _credentials()
     response = requests.post(TOKEN_URL, auth=(key, secret), timeout=15, data={
-        'grant_type': 'refresh_token', 'refresh_token': refresh, 'redirect_uri': 'oob'})
+        'grant_type': 'refresh_token', 'refresh_token': refresh, 'redirect_uri': REDIRECT_URI})
     response.raise_for_status()
     return response.json()['access_token']
 

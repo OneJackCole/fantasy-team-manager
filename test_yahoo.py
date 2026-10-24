@@ -2,7 +2,10 @@
 
 Before the first run, create oauth2.json (git-ignored) with your Yahoo app's credentials:
     {"consumer_key": "...", "consumer_secret": "..."}
-Running this opens Yahoo's sign-in and saves the tokens into the same file. Once it connects,
+The app's Redirect URI on the Yahoo Developer page must be https://localhost:8080 (see
+yahoo_api.REDIRECT_URI). Running this opens Yahoo's sign-in; afterwards the browser lands on a
+localhost page that doesn't load - copy the `code=` value from its address bar and paste it in.
+The tokens are saved into the same file. Once it connects,
 it marks the file "enabled", which switches live Yahoo rosters on for local runs.
 """
 import json
@@ -14,7 +17,9 @@ import yahoo_api
 
 
 def test_connection():
-    sc = OAuth2(None, None, from_file='oauth2.json')
+    print("After you sign in, the browser goes to a localhost page that won't load. That's "
+          "expected:\ncopy the value after 'code=' in its address bar and paste it below.\n")
+    sc = OAuth2(None, None, from_file='oauth2.json', callback_uri=yahoo_api.REDIRECT_URI)
     if not sc.token_is_valid():
         sc.refresh_access_token()
 
