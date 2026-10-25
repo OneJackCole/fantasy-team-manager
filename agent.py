@@ -4,12 +4,13 @@ Runs through Claude Code (the Claude Agent SDK), so it uses your Claude subscrip
 than API billing. Needs Claude Code installed and logged in, or CLAUDE_CODE_OAUTH_TOKEN set.
 
 Usage:
-    python agent.py                      # daily briefing (work league)
+    python agent.py                      # daily briefing for every league
     python agent.py "Should I start Forsberg tonight?"
     python agent.py --league pushing_pucks "Who should I stream at D?"
 """
 import asyncio
 import json
+import statistics
 import sys
 from datetime import date
 
@@ -18,10 +19,11 @@ from claude_agent_sdk import (ClaudeAgentOptions, ClaudeSDKError, CLINotFoundErr
 
 import fantasy
 import nhl_api
+import scoring
 
 MODEL = "claude-opus-5-5"
 
-# Which leagues/<name>.json the tools read; set from --league in main()
+# The league tools use when a call doesn't name one; run() sets it when the user picked one
 LEAGUE = fantasy.DEFAULT_LEAGUE
 
 SYSTEM_PROMPT = """You are a fantasy hockey assistant managing a Yahoo fantasy hockey team \
@@ -37,7 +39,10 @@ How to work:
   prior healthy season. Each remaining day has the lineup that maximizes total value, and there
   is a goalie-starts projection against the weekly minimum. Treat those lineups as the baseline;
   override only with a concrete reason (hot or cold streak, role change, likely goalie rest day).
-- Pull get_player_stats for players whose start/sit call is close, or whose recent form matters.
+- Pull get_player_stats (with the league) for players whose start/sit call is close, or whose
+  recent form matters: it scores each game this season under that league's rules, hits and
+  blocks included. When this season clearly differs from `value` (a new role, more ice
+  time), weigh this season more and say so.
 - Use get_team_game_counts when suggesting pickups or streamers by schedule.
 - When a player comes off IR, use evaluate_drop_candidates to decide who to drop.
 - When the user lists free agents, use evaluate_pickups to rank them and pick drops.
@@ -60,6 +65,16 @@ the week, then anything worth watching. Keep it short."""
 
 TOOLS = []
 
+LEAGUE_ARG = {"league": {"type": "string", "enum": fantasy.available_leagues(),
+                         "description": "League key from the league list in your instructions."}}
+
+
+def league_of(args):
+    league = args.get('league') or LEAGUE
+    if league not in fantasy.available_leagues():
+        raise ValueError(f"Unknown league {league!r}")
+    return league
+
 
 def fantasy_tool(name, description, input_schema):
     """Register fn(args) -> JSON string as a tool for the agent."""
@@ -79,26 +94,47 @@ def fantasy_tool(name, description, input_schema):
     "expected points, which bench players to start, which starters to bench, slot moves, and "
     "projected points vs. the current lineup. Also projects goalie starts for the week against "
     "the league minimum.",
-    {})
+    {"type": "object", "properties": LEAGUE_ARG, "required": ["league"]})
 def get_week_overview(args):
-    return json.dumps(fantasy.week_analysis(league=LEAGUE))
+    return json.dumps(fantasy.week_analysis(league=league_of(args)))
 
 
 @fantasy_tool(
     "get_player_stats",
-    "Get current-season stats and the last 5 games for an NHL player.",
+    "Get current-season stats and the last 5 games for an NHL player. For skaters, also every "
+    "game this season with hits, blocks and ice time, and - given a league - each game's "
+    "fantasy points under that league's scoring, with the season average, spread and best "
+    "games. Use these to judge recent form and ceiling, which the blended `value` smooths over.",
     {"type": "object",
      "properties": {
          "name": {"type": "string", "description": "Player's full name, e.g. \"Filip Forsberg\"."},
          "team": {"type": "string", "description": "Optional NHL team abbreviation to "
-                                                   "disambiguate players with the same name."}},
+                                                   "disambiguate players with the same name."},
+         **LEAGUE_ARG},
      "required": ["name"]})
 def get_player_stats(args):
     name = args['name']
     player = nhl_api.find_player(name, args.get('team') or None)
     if player is None:
         return json.dumps({'error': f"No active NHL player found named {name!r}"})
-    return json.dumps(nhl_api.get_player_stats(player['id']))
+    stats = nhl_api.get_player_stats(player['id'])
+    if player['position'] != 'G':
+        games = nhl_api.get_skater_games(player['id'])
+        if args.get('league'):
+            rules = scoring.rules_for(
+                fantasy.load_roster(league_of(args))['league'].get('scoring', {}), goalie=False)
+            for g in games:
+                g['fantasy_points'] = round(scoring.fantasy_points(g, rules), 1)
+            pts = sorted(g['fantasy_points'] for g in games)
+            if pts:
+                stats['fantasy_this_season'] = {
+                    'league': args['league'], 'games': len(pts),
+                    'average': round(sum(pts) / len(pts), 2),
+                    'spread_sd': round(statistics.pstdev(pts), 2),
+                    'best_games': pts[-3:][::-1],
+                    'share_of_games_15_plus': round(sum(p >= 15 for p in pts) / len(pts), 2)}
+        stats['games_this_season'] = games
+    return json.dumps(stats)
 
 
 @fantasy_tool(
@@ -110,11 +146,12 @@ def get_player_stats(args):
     {"type": "object",
      "properties": {
          "activate_player": {"type": "string", "description": "Name of the rostered IR player "
-                                                              "being activated, e.g. \"Seth Jarvis\"."}},
-     "required": ["activate_player"]})
+                                                              "being activated, e.g. \"Seth Jarvis\"."},
+         **LEAGUE_ARG},
+     "required": ["activate_player", "league"]})
 def evaluate_drop_candidates(args):
     try:
-        return json.dumps(fantasy.drop_analysis(args['activate_player'], LEAGUE))
+        return json.dumps(fantasy.drop_analysis(args['activate_player'], league_of(args)))
     except ValueError as e:
         return json.dumps({'error': str(e)})
 
@@ -130,13 +167,14 @@ def evaluate_drop_candidates(args):
          "players": {"type": "string", "description": "Free agents, one per line as "
                                                       "\"Name TEAM - POS,POS\", e.g. \"Jack Roslovic "
                                                       "TOR - C,RW\". Text copied from a Yahoo player "
-                                                      "list also works."}},
-     "required": ["players"]})
+                                                      "list also works."},
+         **LEAGUE_ARG},
+     "required": ["players", "league"]})
 def evaluate_pickups(args):
     candidates = fantasy.parse_players(args['players'])
     if not candidates:
         return json.dumps({'error': "No players found. Use lines like 'Jack Roslovic TOR - C,RW'."})
-    return json.dumps(fantasy.pickup_analysis(candidates, LEAGUE))
+    return json.dumps(fantasy.pickup_analysis(candidates, league_of(args)))
 
 
 @fantasy_tool(
@@ -163,15 +201,39 @@ This reply goes to Discord, not a terminal: light Markdown (bold, short bullet l
 no tables or headings, and keep it under 1,800 characters."""
 
 
-async def run(question, league=None, discord=False):
-    """Answer `question` about `league` (default: the current LEAGUE). One question at a time:
-    the tools read the module-level LEAGUE."""
+def league_directory():
+    """Each league's key, name, team and rostered players, so the agent can tell from the
+    players a question mentions which league it's about."""
+    lines = ["The user manages one team in each of these leagues. Pass the league key to the "
+             "tools that take one:"]
+    for key in fantasy.available_leagues():
+        roster = fantasy.load_roster(key)
+        players = ', '.join(f"{p['name']} ({p['position']})" for p in fantasy.all_players(roster))
+        lines.append(f"- {key}: {roster['league'].get('name', key)}, team "
+                     f"\"{fantasy.team_label(roster)}\". Roster: {players}")
+    return '\n'.join(lines)
+
+
+async def run(question, league=None, discord=False, history=()):
+    """Answer `question`. With `league`, it's about that league; otherwise the agent works out
+    which league from the players mentioned. `history` is earlier (question, answer) pairs
+    from the same conversation. One question at a time: tools default to the module LEAGUE."""
     global LEAGUE
+    LEAGUE = league or fantasy.DEFAULT_LEAGUE
     if league:
-        LEAGUE = league
+        scope = f"The user is asking about the {league} league."
+    else:
+        scope = ("The user didn't say which league. Work it out from the players they mention: "
+                 "use the league whose roster has them. If they're on rosters in more than one "
+                 "league, or a general question applies to both, cover each league separately "
+                 "and label it. Never apply one league's roster or scoring to another.")
+    system_prompt = '\n\n'.join([SYSTEM_PROMPT, league_directory(), scope])
+    if history:
+        earlier = '\n\n'.join(f"User: {q}\nYou: {a}" for q, a in history)
+        question = f"Earlier in this conversation:\n\n{earlier}\n\nNew question: {question}"
     options = ClaudeAgentOptions(
         model=MODEL,
-        system_prompt=SYSTEM_PROMPT + (DISCORD_FORMAT if discord else ''),
+        system_prompt=system_prompt + (DISCORD_FORMAT if discord else ''),
         effort="medium",
         mcp_servers={"fantasy": create_sdk_mcp_server(name="fantasy", tools=TOOLS)},
         tools=[],  # no built-in Claude Code tools (files, shell, web), only ours
@@ -192,16 +254,13 @@ async def run(question, league=None, discord=False):
 
 
 def main():
-    global LEAGUE
     sys.stdout.reconfigure(encoding='utf-8')
     args = sys.argv[1:]
-    LEAGUE = fantasy.pop_league_arg(args)
-    if not fantasy.all_players(fantasy.load_roster(LEAGUE)):
-        print(f"No players in leagues/{LEAGUE}.json yet - add the roster first.")
-        return
-    question = " ".join(args) or "Give me my daily briefing for my fantasy team."
+    # Without --league, the agent works out the league from the question
+    league = fantasy.pop_league_arg(args) if '--league' in args else None
+    question = " ".join(args) or "Give me my daily briefing for each of my fantasy teams."
     try:
-        print(asyncio.run(run(question)))
+        print(asyncio.run(run(question, league)))
     except CLINotFoundError:
         print("Claude Code isn't installed. Install it, then run `claude` and /login.")
     except ClaudeSDKError as e:

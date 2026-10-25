@@ -36,6 +36,6 @@
   "goalies": [
     {"name": "Devon Levi", "nhl_team": "EDM", "position": "IR", "eligible_positions": ["G"], "status": "IR"},
     {"name": "Joseph Woll", "nhl_team": "PHI", "position": "G", "eligible_positions": ["G"], "status": "Active"},
-    {"name": "Connor Hellebuyck", "nhl_team": "WPG", "position": "IR", "eligible_positions": ["G"], "status": "IR-NR"}
+    {"name": "Connor Hellebuyck", "nhl_team": "NJ", "position": "IR", "eligible_positions": ["G"], "status": "IR-NR"}
   ]
 }

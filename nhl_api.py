@@ -153,6 +153,29 @@ def get_game_log(player_id):
     return _get(f"{WEB_API}/player/{player_id}/game-log/now").get('gameLog', [])
 
 
+@lru_cache(maxsize=64)
+def get_skater_games(player_id, season=None):
+    """A skater's regular-season games this season (or `season`), oldest first, with hits and
+    blocks, keyed like season totals: [{'gameDate', 'opponent', 'toi_minutes', 'goals', ...}]."""
+    season = season or current_season()
+    params = dict(isAggregate='false', isGame='true', limit=100,
+                  cayenneExp=f"playerId={player_id} and seasonId={season} and gameTypeId=2")
+    realtime = {r['gameId']: r for r in _get(f"{STATS_API}/skater/realtime", **params)['data']}
+    games = []
+    for r in _get(f"{STATS_API}/skater/summary", **params)['data']:
+        rt = realtime.get(r['gameId'], {})
+        games.append({
+            'gameDate': r['gameDate'],
+            'opponent': r['opponentTeamAbbrev'],
+            'toi_minutes': round((r.get('timeOnIcePerGame') or 0) / 60, 1),
+            'goals': r['goals'], 'assists': r['assists'], 'plusMinus': r['plusMinus'],
+            'powerPlayPoints': r['ppPoints'], 'shorthandedPoints': r['shPoints'],
+            'shots': r['shots'], 'hits': rt.get('hits') or 0,
+            'blockedShots': rt.get('blockedShots') or 0,
+        })
+    return sorted(games, key=lambda g: g['gameDate'])
+
+
 @lru_cache(maxsize=32)
 def get_boxscore(game_id):
     return _get(f"{WEB_API}/gamecenter/{game_id}/boxscore")

@@ -18,6 +18,8 @@ import asyncio
 import json
 import os
 import sys
+import time
+from collections import deque
 from pathlib import Path
 
 import discord
@@ -31,6 +33,10 @@ CONFIG_FILE = Path(__file__).parent / 'discord_bot.json'
 MAX_MESSAGE = 2000
 # Discord accepts follow-up replies for 15 minutes after a command
 ANSWER_TIMEOUT = 14 * 60
+# Follow-up questions see this many recent exchanges, if they're this recent. Kept in
+# memory only, so it's gone when the bot restarts.
+MEMORY_EXCHANGES = 4
+MEMORY_SECONDS = 60 * 60
 
 
 def load_config():
@@ -74,6 +80,11 @@ class FantasyBot(discord.Client):
         self.tree = app_commands.CommandTree(self)
         # The agent's tools read one shared league setting, so answer one question at a time
         self.busy = asyncio.Lock()
+        self.memory = deque(maxlen=MEMORY_EXCHANGES)  # (time, question, answer)
+
+    def recent(self):
+        cutoff = time.time() - MEMORY_SECONDS
+        return [(q, a) for t, q, a in self.memory if t >= cutoff]
 
     async def setup_hook(self):
         if self.config.get('guild_id'):
@@ -88,9 +99,9 @@ class FantasyBot(discord.Client):
         print(f"Ready as {self.user} - use /ask in Discord. Ctrl+C to stop.")
 
 
-def answer(question, league):
+def answer(question, league, history):
     """Run the agent in this thread's own event loop, away from Discord's."""
-    return asyncio.run(agent.run(question, league, discord=True))
+    return asyncio.run(agent.run(question, league, discord=True, history=history))
 
 
 def main():
@@ -100,7 +111,7 @@ def main():
 
     @bot.tree.command(name='ask', description="Ask your fantasy hockey agent")
     @app_commands.describe(question="e.g. Who should I start tonight?",
-                           league=f"Which league (default: {fantasy.DEFAULT_LEAGUE})")
+                           league="Which league (default: worked out from your question)")
     @app_commands.choices(league=league_choices())
     async def ask(interaction: discord.Interaction, question: str,
                   league: app_commands.Choice[str] = None):
@@ -110,18 +121,18 @@ def main():
             return
         # Answers take a minute or two; Discord needs a response within 3 seconds
         await interaction.response.defer(ephemeral=True, thinking=True)
-        key = league.value if league else fantasy.DEFAULT_LEAGUE
+        key = league.value if league else None
         try:
             async with bot.busy:
-                reply = await asyncio.wait_for(asyncio.to_thread(answer, question, key),
-                                               ANSWER_TIMEOUT)
+                reply = await asyncio.wait_for(
+                    asyncio.to_thread(answer, question, key, bot.recent()), ANSWER_TIMEOUT)
+            bot.memory.append((time.time(), question, reply))
         except asyncio.TimeoutError:
             reply = "That took too long - try a narrower question."
         except Exception as e:
             reply = f"Something went wrong: {type(e).__name__}: {e}"
 
-        name = league.name if league else key
-        text = f"**{name}:** {question}\n\n{reply}"
+        text = (f"**{league.name}:** " if league else "**Q:** ") + f"{question}\n\n{reply}"
         if yahoo_api.available():  # required wherever Yahoo data is shown
             text += f"\n-# {yahoo_api.ATTRIBUTION}"
         for part in chunks(text):
