@@ -41,8 +41,11 @@ How to work:
   override only with a concrete reason (hot or cold streak, role change, likely goalie rest day).
 - Pull get_player_stats (with the league) for players whose start/sit call is close, or whose
   recent form matters: it scores each game this season under that league's rules, hits and
-  blocks included. When this season clearly differs from `value` (a new role, more ice
-  time), weigh this season more and say so.
+  blocks included. Treat `value` as the best estimate of a player's average: in a backtest on
+  2025-26, leaning more on early-season numbers (even with an ice-time change) predicted the
+  rest of the season worse than `value`. Use the per-game data for ceiling and consistency
+  (when the user needs upside, a higher-variance player can be the better start) and for
+  role changes you can name (a promotion to the top line or power play, an injury above him).
 - Use get_team_game_counts when suggesting pickups or streamers by schedule.
 - When a player comes off IR, use evaluate_drop_candidates to decide who to drop.
 - When the user lists free agents, use evaluate_pickups to rank them and pick drops.
