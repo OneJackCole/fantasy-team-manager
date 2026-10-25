@@ -77,6 +77,29 @@ One-time setup:
    rosters and lineups. Without them, the rosters in the league files are used.
 5. **Test it.** Actions tab -> Daily fantasy email -> Run workflow.
 
+## Discord bot
+
+`discord_bot.py` lets you ask the agent from Discord with `/ask` (pick a league, or the default
+work league). It only answers you, and replies are visible only to you. Claude runs on your
+Claude subscription through Claude Code, as with `agent.py`. It runs on your PC, so it answers
+while that's on and the bot is running.
+
+1. **Create the bot.** https://discord.com/developers/applications -> New Application, name it.
+   - Installation tab: set Install Link to **None** (needed before the bot can be private).
+   - Bot tab: turn **Public Bot** off. Click **Reset Token** and copy the token (shown once).
+2. **Invite it.** OAuth2 tab -> URL Generator: check `bot` and `applications.commands`, then
+   under Bot Permissions check `Send Messages`. Open the generated URL and add the bot to a
+   private server of your own (Discord: + -> Create My Own -> For me and my friends).
+3. **Copy your IDs.** Discord -> User Settings -> Advanced -> turn on Developer Mode. Right-click
+   your name -> Copy User ID; right-click the server icon -> Copy Server ID.
+4. **Configure.** Create `discord_bot.json` in this folder (git-ignored):
+   `{"token": "<bot token>", "user_id": "<your user ID>", "guild_id": "<server ID>"}`
+5. **Run.** `pip install -r requirements.txt`, then `python discord_bot.py`. When it prints
+   "Ready", type `/ask` in your server.
+
+To start it automatically, add a Task Scheduler task (trigger: At log on) that runs
+`pythonw.exe` with argument `discord_bot.py`, starting in this folder.
+
 ## Files
 
 - `leagues/*.json` - one file per league: settings, scoring and a fallback roster
@@ -86,6 +109,7 @@ One-time setup:
 - `fantasy.py` - roster + schedule analysis: best lineup for each day, goalie appearances
 - `agent.py` - Claude agent with tools over the above
 - `daily_email.py` - morning email report, sent by the GitHub Actions workflow
+- `discord_bot.py` - `/ask` the agent from Discord
 - `test_yahoo.py` - one-time Yahoo sign-in and connection check
 
 ## Yahoo

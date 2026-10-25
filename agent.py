@@ -157,10 +157,21 @@ def get_team_game_counts(args):
     return json.dumps(counts)
 
 
-async def run(question):
+DISCORD_FORMAT = """
+
+This reply goes to Discord, not a terminal: light Markdown (bold, short bullet lists) is fine, \
+no tables or headings, and keep it under 1,800 characters."""
+
+
+async def run(question, league=None, discord=False):
+    """Answer `question` about `league` (default: the current LEAGUE). One question at a time:
+    the tools read the module-level LEAGUE."""
+    global LEAGUE
+    if league:
+        LEAGUE = league
     options = ClaudeAgentOptions(
         model=MODEL,
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=SYSTEM_PROMPT + (DISCORD_FORMAT if discord else ''),
         effort="medium",
         mcp_servers={"fantasy": create_sdk_mcp_server(name="fantasy", tools=TOOLS)},
         tools=[],  # no built-in Claude Code tools (files, shell, web), only ours

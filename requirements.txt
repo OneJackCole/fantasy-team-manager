@@ -1,3 +1,4 @@
 requests
 claude-agent-sdk
 yahoo_oauth
+discord.py
