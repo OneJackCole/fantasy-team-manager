@@ -15,15 +15,15 @@
   "forwards": [
     {"name": "Connor McDavid", "nhl_team": "EDM", "position": "C", "eligible_positions": ["C"], "status": "Active"},
     {"name": "Wyatt Johnston", "nhl_team": "DAL", "position": "C", "eligible_positions": ["C", "W"], "status": "Active"},
-    {"name": "Andrei Svechnikov", "nhl_team": "CAR", "position": "W", "eligible_positions": ["W"], "status": "Active"},
     {"name": "Seth Jarvis", "nhl_team": "CAR", "position": "W", "eligible_positions": ["W"], "status": "Active"},
+    {"name": "Cole Perfetti", "nhl_team": "WPG", "position": "W", "eligible_positions": ["W"], "status": "Active"},
     {"name": "Martin Necas", "nhl_team": "COL", "position": "W", "eligible_positions": ["W"], "status": "Active"},
-    {"name": "Jake Guentzel", "nhl_team": "TB", "position": "W", "eligible_positions": ["W"], "status": "Active"},
+    {"name": "Alexis Lafrenière", "nhl_team": "NYR", "position": "W", "eligible_positions": ["W"], "status": "Active"},
     {"name": "Clayton Keller", "nhl_team": "UTA", "position": "Util", "eligible_positions": ["W"], "status": "Active"},
     {"name": "Nico Hischier", "nhl_team": "NJ", "position": "Util", "eligible_positions": ["C"], "status": "Active"},
-    {"name": "Cole Perfetti", "nhl_team": "WPG", "position": "Util", "eligible_positions": ["W"], "status": "Active"},
-    {"name": "Alexis Lafrenière", "nhl_team": "NYR", "position": "BN", "eligible_positions": ["W"], "status": "Bench"},
+    {"name": "Andrei Svechnikov", "nhl_team": "CAR", "position": "Util", "eligible_positions": ["W"], "status": "Active"},
     {"name": "Filip Forsberg", "nhl_team": "NSH", "position": "BN", "eligible_positions": ["W"], "status": "Bench"},
+    {"name": "Jake Guentzel", "nhl_team": "TB", "position": "BN", "eligible_positions": ["W"], "status": "Bench"},
     {"name": "Aleksander Barkov", "nhl_team": "FLA", "position": "IR", "eligible_positions": ["C"], "status": "IR-LT"},
     {"name": "Mathew Barzal", "nhl_team": "NYI", "position": "IR+", "eligible_positions": ["C", "W"], "status": "IR-NR"},
     {"name": "John Tavares", "nhl_team": "TOR", "position": "IR+", "eligible_positions": ["C"], "status": "IR"}
@@ -35,7 +35,7 @@
     {"name": "Vince Dunn", "nhl_team": "SEA", "position": "D", "eligible_positions": ["D"], "status": "Active"}
   ],
   "goalies": [
-    {"name": "Lukas Dostal", "nhl_team": "ANA", "position": "G", "eligible_positions": ["G"], "status": "Active"},
-    {"name": "Pyotr Kochetkov", "nhl_team": "CAR", "position": "G", "eligible_positions": ["G"], "status": "Active"}
+    {"name": "Pyotr Kochetkov", "nhl_team": "CAR", "position": "G", "eligible_positions": ["G"], "status": "Active"},
+    {"name": "Dylan Garand", "nhl_team": "NYR", "position": "G", "eligible_positions": ["G"], "status": "Active"}
   ]
 }
