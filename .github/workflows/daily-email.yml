@@ -2,33 +2,37 @@ name: Daily fantasy email
 
 on:
   schedule:
-    # 8 AM Eastern is 12:00 UTC in daylight time and 13:00 UTC in standard time.
-    # Both run; the gate below lets through only the one that is 8 AM in New York today.
-    - cron: '0 12 * * *'
-    - cron: '0 13 * * *'
+    # GitHub can delay or drop scheduled runs (most often on the hour), so try several times
+    # at off-peak minutes. The gate sends from the first run at or after 8 AM Eastern and
+    # skips the rest once one has sent. In UTC: 8:07 AM Eastern is 12:07 in daylight time,
+    # 13:07 in standard time; the later runs are fallbacks.
+    - cron: '7 12 * * *'
+    - cron: '7 13 * * *'
+    - cron: '37 13 * * *'
+    - cron: '7 14 * * *'
   workflow_dispatch:  # "Run workflow" button for a test send
 
 permissions:
   contents: read
+  actions: read  # the gate checks whether an earlier run already sent today's email
+
+# One run at a time, so a delayed run can't send alongside a later one
+concurrency:
+  group: daily-email
+  cancel-in-progress: false
 
 jobs:
   email:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Check it's the 8 AM Eastern run
+      - uses: actions/checkout@v5
+
+      - name: Decide whether to send
         id: gate
         env:
-          SCHEDULE: ${{ github.event.schedule }}
-        run: |
-          if [ -z "$SCHEDULE" ]; then echo "send=true" >> "$GITHUB_OUTPUT"; exit 0; fi
-          hour=$(echo "$SCHEDULE" | cut -d' ' -f2)
-          ny_hour=$(TZ=America/New_York date -d "$(date -u +%F) ${hour}:00 UTC" +%-H)
-          echo "Cron hour ${hour} UTC is ${ny_hour}:00 in New York"
-          if [ "$ny_hour" = "8" ]; then echo "send=true" >> "$GITHUB_OUTPUT"; fi
-
-      - uses: actions/checkout@v5
-        if: steps.gate.outputs.send == 'true'
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/email_gate.py
 
       - uses: actions/setup-python@v6
         if: steps.gate.outputs.send == 'true'
