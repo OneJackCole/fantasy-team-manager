@@ -23,7 +23,6 @@
     {"name": "Adam Edstrom", "nhl_team": "NSH", "position": "BN", "eligible_positions": ["C", "LW"], "status": "Bench"},
     {"name": "Connor Bedard", "nhl_team": "CHI", "position": "BN", "eligible_positions": ["C", "RW"], "status": "Bench"},
     {"name": "Steven Stamkos", "nhl_team": "NSH", "position": "BN", "eligible_positions": ["C", "RW"], "status": "Bench"},
-    {"name": "Valeri Nichushkin", "nhl_team": "CBJ", "position": "BN", "eligible_positions": ["LW", "RW"], "status": "Bench"},
     {"name": "Bryan Rust", "nhl_team": "PIT", "position": "IR+", "eligible_positions": ["RW"], "status": "IR"}
   ],
   "defensemen": [
@@ -35,6 +34,7 @@
   ],
   "goalies": [
     {"name": "Joseph Woll", "nhl_team": "PHI", "position": "G", "eligible_positions": ["G"], "status": "Active"},
+    {"name": "Devin Cooley", "nhl_team": "CGY", "position": "G", "eligible_positions": ["G"], "status": "Active"},
     {"name": "Connor Hellebuyck", "nhl_team": "NJ", "position": "IR", "eligible_positions": ["G"], "status": "O"},
     {"name": "Devon Levi", "nhl_team": "EDM", "position": "IR", "eligible_positions": ["G"], "status": "IR"}
   ]
