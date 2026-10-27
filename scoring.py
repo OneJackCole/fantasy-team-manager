@@ -72,7 +72,11 @@ def goalie_value(player_id, team, scoring):
     """Expected points per *team* game: how often he starts x points per start."""
     scoring = rules_for(scoring, goalie=True)
     cur, prev = _seasons(player_id, scoring)
-    team_gp = nhl_api.get_team_games_played().get(team, 0)
+    # Team games only count against his start share from his first appearance on: before
+    # that he was hurt or not up yet, not losing starts. No appearances yet -> prior only.
+    appearances = [g['gameDate'] for g in nhl_api.get_game_log(player_id)]
+    team_gp = (sum(1 for day in nhl_api.get_team_game_dates(team) if day >= min(appearances))
+               if appearances else 0)
 
     cur_starts = cur.get('gamesStarted', 0)
     prev_starts = prev.get('gamesStarted', 0)
@@ -93,7 +97,8 @@ def goalie_value(player_id, team, scoring):
         'value': round(start_rate * pts_per_start, 3),
         'start_rate': round(start_rate, 2),
         'points_per_start': round(pts_per_start, 2),
-        'basis': f"{cur_starts} starts in {team_gp} team games this season",
+        'basis': (f"{cur_starts} starts in {team_gp} team games since his first appearance"
+                  if appearances else "no appearances yet this season: last season's role"),
     }
 
 

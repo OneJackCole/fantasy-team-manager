@@ -188,8 +188,12 @@ def get_realtime_totals(player_id):
 
 @lru_cache(maxsize=64)
 def get_game_log(player_id):
-    """This season's regular-season game log, most recent first."""
-    return _get(f"{WEB_API}/player/{player_id}/game-log/now").get('gameLog', [])
+    """This season's regular-season game log, most recent first.
+
+    Asks for the season by id: game-log/now falls back to last season's log for a player who
+    hasn't played yet this season.
+    """
+    return _get(f"{WEB_API}/player/{player_id}/game-log/{current_season()}/2").get('gameLog', [])
 
 
 @lru_cache(maxsize=64)
@@ -240,6 +244,14 @@ def get_game_stats(player_id, day):
             if row.get('playerId') == player_id:
                 stats.update({k: row.get(k, 0) for k in REALTIME_STATS})
     return stats
+
+
+@lru_cache(maxsize=32)
+def get_team_game_dates(team):
+    """Dates (ISO) of a team's completed regular-season games this season, oldest first."""
+    data = _get(f"{WEB_API}/club-schedule-season/{team}/now")
+    return [g['gameDate'] for g in data.get('games', [])
+            if g.get('gameType') == 2 and g.get('gameState') in ('OFF', 'FINAL')]
 
 
 @lru_cache(maxsize=1)
