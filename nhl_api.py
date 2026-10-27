@@ -1,14 +1,33 @@
-"""Thin client for the public (unauthenticated) NHL APIs."""
+"""Thin client for the public (unauthenticated) NHL APIs.
+
+Responses are cached on disk for an hour (.cache/nhl, git-ignored), so back-to-back runs don't
+refetch everything. This is public NHL data only - nothing from Yahoo goes through here.
+"""
+import hashlib
+import json
+import socket
 import time
 import unicodedata
 from datetime import date, timedelta
 from functools import lru_cache
+from pathlib import Path
 
 import requests
+import urllib3.util.connection
 
 WEB_API = "https://api-web.nhle.com/v1"
 SEARCH_API = "https://search.d3.nhle.com/api/v1/search/player"
 STATS_API = "https://api.nhle.com/stats/rest/en"
+
+CACHE_DIR = Path(__file__).parent / '.cache' / 'nhl'
+CACHE_SECONDS = 60 * 60
+MAX_RETRY_WAIT = 30
+
+# The NHL hosts publish IPv6 addresses too; where the IPv6 route is broken, every new
+# connection stalls ~40s before falling back to IPv4. IPv4 always works, so use it.
+urllib3.util.connection.allowed_gai_family = lambda: socket.AF_INET
+# One session, so connections are reused instead of reopened for every request
+_session = requests.Session()
 
 # Numeric fields in season rows that are identifiers, not stats to add up across teams
 ID_FIELDS = {'season', 'sequence', 'gameTypeId'}
@@ -36,14 +55,34 @@ def fold_name(name):
 
 
 def _get(url, **params):
+    key = hashlib.sha1(json.dumps([url, sorted(params.items())], default=str).encode()).hexdigest()
+    cached = CACHE_DIR / f"{key}.json"
+    try:
+        if time.time() - cached.stat().st_mtime < CACHE_SECONDS:
+            return json.loads(cached.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        pass  # missing, stale or unreadable: fetch it
     for attempt in range(4):
-        response = requests.get(url, params=params or None, timeout=15)
+        try:
+            response = _session.get(url, params=params or None, timeout=15)
+        except (requests.Timeout, requests.ConnectionError):
+            if attempt == 3:
+                raise
+            time.sleep(2 ** attempt)  # a slow or dropped request: try again
+            continue
         if response.status_code != 429:
             break
-        # Rate limited - back off and retry
-        time.sleep(int(response.headers.get('Retry-After', 2 ** (attempt + 1))))
+        # Rate limited - back off and retry, but never stall a run on a huge Retry-After
+        wait = int(response.headers.get('Retry-After', 2 ** (attempt + 1)))
+        time.sleep(min(wait, MAX_RETRY_WAIT))
     response.raise_for_status()
-    return response.json()
+    data = response.json()
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        cached.write_text(json.dumps(data), encoding='utf-8')
+    except OSError:
+        pass  # caching is an optimization; a read-only disk shouldn't break anything
+    return data
 
 
 def week_start(day=None):

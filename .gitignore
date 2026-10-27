@@ -13,3 +13,6 @@ daily_email.html
 
 # Discord bot token and IDs
 discord_bot.json
+
+# Local cache of public NHL API responses
+.cache/

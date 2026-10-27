@@ -198,13 +198,23 @@ def _projection(roster, players, weeks, today):
     for p in players:
         prepare(p)
 
+    # Best lineup's (points, goalie starts) by day and who plays that day. A trade or a
+    # pickup only changes the days the players involved have games, so comparing many
+    # rosters reuses every other day instead of re-solving all of them.
+    solved = {}
+
     def project(roster_players):
         total = starts = 0.0
         for day in days:
             playing = [p for p in roster_players if day.isoformat() in p['game_dates']]
-            lineup = optimal_lineup(playing, slots).values()
-            total += sum(p['value'] for p in lineup)
-            starts += sum(p.get('start_rate', 0) for p in lineup)
+            key = (day, frozenset(p['name'] for p in playing))
+            if key not in solved:
+                lineup = optimal_lineup(playing, slots).values()
+                solved[key] = (sum(p['value'] for p in lineup),
+                               sum(p.get('start_rate', 0) for p in lineup))
+            day_points, day_starts = solved[key]
+            total += day_points
+            starts += day_starts
         return total, starts / weeks
 
     return days, prepare, project
