@@ -33,9 +33,8 @@
     {"name": "Tyler Kleven", "nhl_team": "OTT", "position": "BN", "eligible_positions": ["D"], "status": "Bench"}
   ],
   "goalies": [
-    {"name": "Joseph Woll", "nhl_team": "PHI", "position": "G", "eligible_positions": ["G"], "status": "Active"},
     {"name": "Devin Cooley", "nhl_team": "CGY", "position": "G", "eligible_positions": ["G"], "status": "Active"},
-    {"name": "Connor Hellebuyck", "nhl_team": "NJ", "position": "IR", "eligible_positions": ["G"], "status": "O"},
+    {"name": "Connor Hellebuyck", "nhl_team": "NJ", "position": "G", "eligible_positions": ["G"], "status": "Active"},
     {"name": "Devon Levi", "nhl_team": "EDM", "position": "IR", "eligible_positions": ["G"], "status": "IR"}
   ]
 }
