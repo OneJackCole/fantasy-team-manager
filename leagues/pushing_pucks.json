@@ -22,6 +22,7 @@
     {"name": "Adam Edstrom", "nhl_team": "NSH", "position": "BN", "eligible_positions": ["C", "LW"], "status": "Bench"},
     {"name": "Connor Bedard", "nhl_team": "CHI", "position": "BN", "eligible_positions": ["C", "RW"], "status": "Bench"},
     {"name": "Steven Stamkos", "nhl_team": "NSH", "position": "BN", "eligible_positions": ["C", "RW"], "status": "Bench"},
+    {"name": "Carter Verhaeghe", "nhl_team": "FLA", "position": "BN", "eligible_positions": ["LW"], "status": "Bench"},
     {"name": "Bryan Rust", "nhl_team": "PIT", "position": "IR", "eligible_positions": ["RW"], "status": "IR"}
   ],
   "defensemen": [
