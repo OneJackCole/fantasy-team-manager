@@ -15,7 +15,6 @@
   },
   "forwards": [
     {"name": "Sebastian Aho", "nhl_team": "CAR", "position": "C", "eligible_positions": ["C"], "status": "Active"},
-    {"name": "Sam Bennett", "nhl_team": "FLA", "position": "C", "eligible_positions": ["C"], "status": "Active"},
     {"name": "Kyle Connor", "nhl_team": "WPG", "position": "LW", "eligible_positions": ["LW"], "status": "Active"},
     {"name": "Ryan Nugent-Hopkins", "nhl_team": "EDM", "position": "LW", "eligible_positions": ["C", "LW"], "status": "Active"},
     {"name": "Adrian Kempe", "nhl_team": "LA", "position": "RW", "eligible_positions": ["RW"], "status": "Active"},
@@ -23,7 +22,7 @@
     {"name": "Adam Edstrom", "nhl_team": "NSH", "position": "BN", "eligible_positions": ["C", "LW"], "status": "Bench"},
     {"name": "Connor Bedard", "nhl_team": "CHI", "position": "BN", "eligible_positions": ["C", "RW"], "status": "Bench"},
     {"name": "Steven Stamkos", "nhl_team": "NSH", "position": "BN", "eligible_positions": ["C", "RW"], "status": "Bench"},
-    {"name": "Bryan Rust", "nhl_team": "PIT", "position": "IR+", "eligible_positions": ["RW"], "status": "IR"}
+    {"name": "Bryan Rust", "nhl_team": "PIT", "position": "IR", "eligible_positions": ["RW"], "status": "IR"}
   ],
   "defensemen": [
     {"name": "Roman Josi", "nhl_team": "NSH", "position": "D", "eligible_positions": ["D"], "status": "Active"},
@@ -33,7 +32,8 @@
     {"name": "Tyler Kleven", "nhl_team": "OTT", "position": "BN", "eligible_positions": ["D"], "status": "Bench"}
   ],
   "goalies": [
-    {"name": "Devin Cooley", "nhl_team": "CGY", "position": "G", "eligible_positions": ["G"], "status": "Active"},
+    {"name": "Devin Cooley", "nhl_team": "CGY", "position": "IR+", "eligible_positions": ["G"], "status": "DTD"},
+    {"name": "Joel Hofer", "nhl_team": "STL", "position": "G", "eligible_positions": ["G"], "status": "Active"},
     {"name": "Connor Hellebuyck", "nhl_team": "NJ", "position": "G", "eligible_positions": ["G"], "status": "Active"},
     {"name": "Devon Levi", "nhl_team": "EDM", "position": "IR", "eligible_positions": ["G"], "status": "IR"}
   ]
