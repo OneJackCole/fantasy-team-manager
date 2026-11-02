@@ -1,7 +1,7 @@
-"""Should this workflow run send the morning email? Prints send=true or send=false.
+"""Should this workflow run send the Monday email? Prints send=true or send=false.
 
-GitHub can delay or drop scheduled runs, so the workflow is scheduled several times a
-morning. A scheduled run sends only if it's 8 AM Eastern or later and no earlier scheduled
+GitHub can delay or drop scheduled runs, so the workflow is scheduled several times on
+Monday mornings. A scheduled run sends only if it's 8 AM Eastern or later and no earlier scheduled
 run sent today's email. Manual runs always send.
 """
 import json
@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 EASTERN = ZoneInfo('America/New_York')
 SEND_FROM_HOUR = 8
-WORKFLOW = 'daily-email.yml'
+WORKFLOW = 'weekly-email.yml'
 SEND_STEP = 'Send email'
 
 

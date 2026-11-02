@@ -1,24 +1,24 @@
-name: Daily fantasy email
+name: Weekly fantasy email
 
 on:
   schedule:
-    # GitHub can delay or drop scheduled runs (most often on the hour), so try several times
-    # at off-peak minutes. The gate sends from the first run at or after 8 AM Eastern and
+    # Mondays. GitHub can delay or drop scheduled runs (most often on the hour), so try several
+    # times at off-peak minutes. The gate sends from the first run at or after 8 AM Eastern and
     # skips the rest once one has sent. In UTC: 8:07 AM Eastern is 12:07 in daylight time,
     # 13:07 in standard time; the later runs are fallbacks.
-    - cron: '7 12 * * *'
-    - cron: '7 13 * * *'
-    - cron: '37 13 * * *'
-    - cron: '7 14 * * *'
+    - cron: '7 12 * * 1'
+    - cron: '7 13 * * 1'
+    - cron: '37 13 * * 1'
+    - cron: '7 14 * * 1'
   workflow_dispatch:  # "Run workflow" button for a test send
 
 permissions:
   contents: read
-  actions: read  # the gate checks whether an earlier run already sent today's email
+  actions: read  # the gate checks whether an earlier run already sent this week's email
 
 # One run at a time, so a delayed run can't send alongside a later one
 concurrency:
-  group: daily-email
+  group: weekly-email
   cancel-in-progress: false
 
 jobs:
@@ -67,5 +67,5 @@ jobs:
           else
             echo "CLAUDE_CODE_OAUTH_TOKEN is not set - sending without the briefing"
           fi
-          python daily_email.py $args
+          python weekly_email.py $args
 

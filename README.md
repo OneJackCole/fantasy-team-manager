@@ -50,13 +50,14 @@ python fantasy.py --league pushing_pucks
 python agent.py --league pushing_pucks "Who should I stream at D?"
 ```
 
-## Morning email
+## Monday email
 
-`daily_email.py` emails last night's fantasy points and today's best lineup for every league,
-plus alerts (an IR player who played, a traded player, goalie starts below the minimum).
-`python daily_email.py --preview` writes `daily_email.html` without sending.
+`weekly_email.py` emails the week ahead for every league: each day's best lineup, whether the
+goalies are on track for the weekly minimum, and skaters worth replacing from waivers (a light
+schedule, a low projection, or a cold streak), plus alerts such as a traded player.
+`python weekly_email.py --preview` writes `weekly_email.html` without sending.
 
-It runs every day at 8 AM Eastern on GitHub Actions (`.github/workflows/daily-email.yml`).
+It runs Mondays at 8 AM Eastern on GitHub Actions (`.github/workflows/weekly-email.yml`).
 One-time setup:
 
 1. **Gmail app password.** Google account -> Security -> turn on 2-Step Verification if it isn't,
@@ -70,12 +71,12 @@ One-time setup:
 3. **Claude briefing (optional).** Run `claude setup-token` in a terminal and sign in with your
    Claude account, then add the token it prints as a fourth secret, `CLAUDE_CODE_OAUTH_TOKEN`.
    The briefing then runs on your Claude subscription (no API billing). Without the secret, or if
-   Claude fails, the email goes out without it. `python daily_email.py --preview --briefing`
+   Claude fails, the email goes out without it. `python weekly_email.py --preview --briefing`
    tries it locally with your own Claude Code login.
 4. **Yahoo (optional).** Add `YAHOO_CONSUMER_KEY`, `YAHOO_CONSUMER_SECRET` and
    `YAHOO_REFRESH_TOKEN` secrets (the values in your local `oauth2.json`, see below) for live
    rosters and lineups. Without them, the rosters in the league files are used.
-5. **Test it.** Actions tab -> Daily fantasy email -> Run workflow.
+5. **Test it.** Actions tab -> Weekly fantasy email -> Run workflow.
 
 ## Discord bot
 
@@ -108,7 +109,7 @@ To start it automatically, add a Task Scheduler task (trigger: At log on) that r
 - `scoring.py` - expected fantasy points per game from a league's scoring rules
 - `fantasy.py` - roster + schedule analysis: best lineup for each day, goalie appearances
 - `agent.py` - Claude agent with tools over the above
-- `daily_email.py` - morning email report, sent by the GitHub Actions workflow
+- `weekly_email.py` - Monday email report, sent by the GitHub Actions workflow
 - `discord_bot.py` - `/ask` the agent from Discord
 - `test_yahoo.py` - one-time Yahoo sign-in and connection check
 
