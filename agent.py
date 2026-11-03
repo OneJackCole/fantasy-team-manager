@@ -61,7 +61,9 @@ frame it as "if available" and suggest checking the waiver wire.
 it matters (especially for goalie starts).
 - If a player's NHL team in the stats differs from the roster file, point it out - they were \
 probably traded and the league's roster file needs updating. (Yahoo and NHL abbreviations like NJ/NJD and \
-TB/TBL are the same team - don't flag those.)
+TB/TBL are the same team - don't flag those.)"""
+
+TERMINAL_FORMAT = """
 
 Format: plain text for a terminal. Lead with the actionable moves for today, then the rest of \
 the week, then anything worth watching. Keep it short."""
@@ -200,8 +202,12 @@ def get_team_game_counts(args):
 
 DISCORD_FORMAT = """
 
-This reply goes to Discord, not a terminal: light Markdown (bold, short bullet lists) is fine, \
-no tables or headings, and keep it under 1,800 characters."""
+You're chatting with the user in Discord. Answer what they actually asked, at the length it \
+needs: a line or two for a quick question or a follow-up, more only for a real decision. Don't \
+recap the whole week unless they ask for it, and don't call tools a message doesn't need (small \
+talk, or a question you've already answered). If a request is ambiguous, ask one short question \
+instead of guessing. Light Markdown (bold, short bullet lists) is fine, no tables or headings, \
+and keep it under 1,800 characters."""
 
 
 def league_directory():
@@ -219,8 +225,8 @@ def league_directory():
 
 async def run(question, league=None, discord=False, history=()):
     """Answer `question`. With `league`, it's about that league; otherwise the agent works out
-    which league from the players mentioned. `history` is earlier (question, answer) pairs
-    from the same conversation. One question at a time: tools default to the module LEAGUE."""
+    which league from the players mentioned. `history` is earlier (message, reply) pairs
+    from the same conversation, oldest first. One question at a time: tools default to the module LEAGUE."""
     global LEAGUE
     LEAGUE = league or fantasy.DEFAULT_LEAGUE
     if league:
@@ -233,16 +239,19 @@ async def run(question, league=None, discord=False, history=()):
     system_prompt = '\n\n'.join([SYSTEM_PROMPT, league_directory(), scope])
     if history:
         earlier = '\n\n'.join(f"User: {q}\nYou: {a}" for q, a in history)
-        question = f"Earlier in this conversation:\n\n{earlier}\n\nNew question: {question}"
+        question = f"Earlier in this conversation:\n\n{earlier}\n\nNew message: {question}"
     options = ClaudeAgentOptions(
         model=MODEL,
-        system_prompt=system_prompt + (DISCORD_FORMAT if discord else ''),
+        system_prompt=system_prompt + (DISCORD_FORMAT if discord else TERMINAL_FORMAT),
         effort="medium",
         mcp_servers={"fantasy": create_sdk_mcp_server(name="fantasy", tools=TOOLS)},
         tools=[],  # no built-in Claude Code tools (files, shell, web), only ours
         allowed_tools=[f"mcp__fantasy__{t.name}" for t in TOOLS],
         setting_sources=[],  # ignore local Claude Code settings and CLAUDE.md
         max_turns=30,
+        # Don't save the conversation to disk: answers can hold league data (Yahoo's terms
+        # don't allow storing it), and earlier turns come in through `history` instead
+        extra_args={'no-session-persistence': None},
     )
     result = None
     async for message in query(prompt=f"Today is {date.today().isoformat()}. {question}",

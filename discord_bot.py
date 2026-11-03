@@ -1,22 +1,30 @@
-"""Discord bot: ask the fantasy agent from Discord with /ask.
+"""Discord bot: chat with the fantasy agent from Discord.
 
-It only answers its owner, and its replies are ephemeral: visible only to you and gone once
-you dismiss them or reload Discord, so answers don't pile up in channel history.
+Message it directly (DM), @mention it, or post in its channel (channel_id in the config) and it
+replies like a chat, remembering the conversation so follow-ups work. "new" starts a fresh
+conversation. /ask still works, with replies only you can see. It only answers its owner.
 
 Claude runs through Claude Code on your subscription (the same as agent.py), so questions
 count against your Claude plan's usage limits rather than API billing.
 
 Config in discord_bot.json (git-ignored), or the matching environment variables:
-    {"token": "...", "user_id": "...", "guild_id": "..."}
-    DISCORD_BOT_TOKEN, DISCORD_USER_ID, DISCORD_GUILD_ID
-guild_id is your private server's ID; with it, /ask shows up there right away.
+    {"token": "...", "user_id": "...", "guild_id": "...", "channel_id": "..."}
+    DISCORD_BOT_TOKEN, DISCORD_USER_ID, DISCORD_GUILD_ID, DISCORD_CHANNEL_ID
+guild_id is your private server's ID; with it, /ask shows up there right away. channel_id
+(optional) is a channel where it answers every message without being @mentioned. Chatting
+needs the bot's Message Content Intent on (Developer Portal -> Bot).
+
+It logs to discord_bot.log (git-ignored), so it can run without a console window.
 
 Usage:
     python discord_bot.py
 """
 import asyncio
 import json
+import logging
+import logging.handlers
 import os
+import re
 import sys
 import time
 from collections import deque
@@ -30,13 +38,16 @@ import fantasy
 import yahoo_api
 
 CONFIG_FILE = Path(__file__).parent / 'discord_bot.json'
+LOG_FILE = Path(__file__).parent / 'discord_bot.log'
 MAX_MESSAGE = 2000
 # Discord accepts follow-up replies for 15 minutes after a command
 ANSWER_TIMEOUT = 14 * 60
-# Follow-up questions see this many recent exchanges, if they're this recent. Kept in
-# memory only, so it's gone when the bot restarts.
-MEMORY_EXCHANGES = 4
-MEMORY_SECONDS = 60 * 60
+# A conversation (one per DM or channel) remembers this many exchanges and ends after this
+# long without a message. Kept in memory only, so it's gone when the bot restarts.
+MEMORY_EXCHANGES = 12
+MEMORY_SECONDS = 3 * 60 * 60
+# Messages that start a fresh conversation
+RESET_WORDS = {'new', 'reset', 'new chat', 'start over', 'clear'}
 
 
 def load_config():
@@ -44,7 +55,7 @@ def load_config():
     if CONFIG_FILE.exists():
         config = json.loads(CONFIG_FILE.read_text(encoding='utf-8'))
     for key, env in (('token', 'DISCORD_BOT_TOKEN'), ('user_id', 'DISCORD_USER_ID'),
-                     ('guild_id', 'DISCORD_GUILD_ID')):
+                     ('guild_id', 'DISCORD_GUILD_ID'), ('channel_id', 'DISCORD_CHANNEL_ID')):
         config[key] = config.get(key) or os.environ.get(env)
     missing = [k for k in ('token', 'user_id') if not config[k]]
     if missing:
@@ -74,17 +85,44 @@ def league_choices():
 
 class FantasyBot(discord.Client):
     def __init__(self, config):
-        super().__init__(intents=discord.Intents.default())
+        intents = discord.Intents.default()
+        intents.message_content = True  # to read chat messages, not just /ask
+        super().__init__(intents=intents)
         self.config = config
         self.owner_id = int(config['user_id'])
+        self.channel_id = int(config['channel_id']) if config.get('channel_id') else None
         self.tree = app_commands.CommandTree(self)
-        # The agent's tools read one shared league setting, so answer one question at a time
+        # The agent's tools read one shared league setting, so answer one message at a time
         self.busy = asyncio.Lock()
-        self.memory = deque(maxlen=MEMORY_EXCHANGES)  # (time, question, answer)
+        self.conversations = {}  # channel id -> deque of (time, message, reply)
 
-    def recent(self):
-        cutoff = time.time() - MEMORY_SECONDS
-        return [(q, a) for t, q, a in self.memory if t >= cutoff]
+    def history(self, channel_id):
+        """Earlier exchanges in this channel's conversation, or none if it went quiet."""
+        exchanges = self.conversations.get(channel_id)
+        if exchanges and time.time() - exchanges[-1][0] > MEMORY_SECONDS:
+            exchanges.clear()
+        return [(m, r) for _, m, r in exchanges or ()]
+
+    def remember(self, channel_id, message, reply):
+        exchanges = self.conversations.setdefault(channel_id, deque(maxlen=MEMORY_EXCHANGES))
+        exchanges.append((time.time(), message, reply))
+
+    async def reply_to(self, channel_id, message, league=None):
+        """The agent's reply to `message`, in this channel's conversation."""
+        try:
+            async with self.busy:
+                reply = await asyncio.wait_for(
+                    asyncio.to_thread(answer, message, league, self.history(channel_id)),
+                    ANSWER_TIMEOUT)
+            self.remember(channel_id, message, reply)
+        except asyncio.TimeoutError:
+            reply = "That took too long - try a narrower question."
+        except Exception as e:
+            logging.exception("Agent failed")
+            reply = f"Something went wrong: {type(e).__name__}: {e}"
+        if yahoo_api.available():  # required wherever Yahoo data is shown
+            reply += f"\n-# {yahoo_api.ATTRIBUTION}"
+        return reply
 
     async def setup_hook(self):
         if self.config.get('guild_id'):
@@ -96,7 +134,30 @@ class FantasyBot(discord.Client):
             await self.tree.sync()
 
     async def on_ready(self):
-        print(f"Ready as {self.user} - use /ask in Discord. Ctrl+C to stop.")
+        logging.info("Ready as %s", self.user)
+        if sys.stdout:
+            print(f"Ready as {self.user} - message it in Discord. Ctrl+C to stop.")
+
+    async def on_message(self, message):
+        if message.author.id != self.owner_id:
+            return
+        direct = isinstance(message.channel, discord.DMChannel)
+        mentioned = self.user in message.mentions
+        if not (direct or mentioned or message.channel.id == self.channel_id):
+            return
+        text = re.sub(rf"<@!?{self.user.id}>", '', message.content).strip()
+        if not text:
+            return
+        if text.lower().strip('!. ') in RESET_WORDS:
+            self.conversations.pop(message.channel.id, None)
+            await message.reply("Fresh start - what's up?", mention_author=False)
+            return
+        async with message.channel.typing():
+            reply = await self.reply_to(message.channel.id, text)
+        parts = chunks(reply)
+        await message.reply(parts[0], mention_author=False)
+        for part in parts[1:]:
+            await message.channel.send(part)
 
 
 def answer(question, league, history):
@@ -104,12 +165,23 @@ def answer(question, league, history):
     return asyncio.run(agent.run(question, league, discord=True, history=history))
 
 
+def setup_logging():
+    """Log to discord_bot.log, and to the console when there is one."""
+    handler = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=1_000_000, backupCount=2,
+                                                   encoding='utf-8')
+    handlers = [handler] + ([logging.StreamHandler(sys.stdout)] if sys.stdout else [])
+    logging.basicConfig(level=logging.INFO, handlers=handlers,
+                        format='[%(asctime)s] [%(levelname)s] %(name)s: %(message)s')
+
+
 def main():
-    sys.stdout.reconfigure(encoding='utf-8')
+    if sys.stdout:  # None under pythonw (no console window)
+        sys.stdout.reconfigure(encoding='utf-8')
+    setup_logging()
     config = load_config()
     bot = FantasyBot(config)
 
-    @bot.tree.command(name='ask', description="Ask your fantasy hockey agent")
+    @bot.tree.command(name='ask', description="Ask your fantasy hockey agent (only you see it)")
     @app_commands.describe(question="e.g. Who should I start tonight?",
                            league="Which league (default: worked out from your question)")
     @app_commands.choices(league=league_choices())
@@ -121,24 +193,21 @@ def main():
             return
         # Answers take a minute or two; Discord needs a response within 3 seconds
         await interaction.response.defer(ephemeral=True, thinking=True)
-        key = league.value if league else None
-        try:
-            async with bot.busy:
-                reply = await asyncio.wait_for(
-                    asyncio.to_thread(answer, question, key, bot.recent()), ANSWER_TIMEOUT)
-            bot.memory.append((time.time(), question, reply))
-        except asyncio.TimeoutError:
-            reply = "That took too long - try a narrower question."
-        except Exception as e:
-            reply = f"Something went wrong: {type(e).__name__}: {e}"
-
+        reply = await bot.reply_to(interaction.channel_id, question,
+                                   league.value if league else None)
         text = (f"**{league.name}:** " if league else "**Q:** ") + f"{question}\n\n{reply}"
-        if yahoo_api.available():  # required wherever Yahoo data is shown
-            text += f"\n-# {yahoo_api.ATTRIBUTION}"
         for part in chunks(text):
             await interaction.followup.send(part, ephemeral=True)
 
-    bot.run(config['token'])
+    @bot.tree.command(name='new', description="Start a fresh conversation in this channel")
+    async def new(interaction: discord.Interaction):
+        if interaction.user.id == bot.owner_id:
+            bot.conversations.pop(interaction.channel_id, None)
+        await interaction.response.send_message("Fresh start.", ephemeral=True)
+
+    # discord.py reconnects by itself after network drops; log_handler=None keeps its
+    # logging on ours instead of adding a second console handler
+    bot.run(config['token'], log_handler=None)
 
 
 if __name__ == '__main__':

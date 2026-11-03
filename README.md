@@ -80,14 +80,16 @@ One-time setup:
 
 ## Discord bot
 
-`discord_bot.py` lets you ask the agent from Discord with `/ask` (pick a league, or the default
-work league). It only answers you, and replies are visible only to you. Claude runs on your
-Claude subscription through Claude Code, as with `agent.py`. It runs on your PC, so it answers
-while that's on and the bot is running.
+`discord_bot.py` lets you chat with the agent from Discord: DM it, @mention it, or post in its
+channel, and it replies in the conversation and remembers it (for 3 hours, in memory only), so
+follow-ups work. Say "new" (or `/new`) to start over. `/ask` still works for a private reply.
+It only answers you. Claude runs on your Claude subscription through Claude Code, as with
+`agent.py`. It runs on your PC, so it answers while that's on and the bot is running.
 
 1. **Create the bot.** https://discord.com/developers/applications -> New Application, name it.
    - Installation tab: set Install Link to **None** (needed before the bot can be private).
-   - Bot tab: turn **Public Bot** off. Click **Reset Token** and copy the token (shown once).
+   - Bot tab: turn **Public Bot** off, and turn **Message Content Intent** on (so it can read
+     chat messages). Click **Reset Token** and copy the token (shown once).
 2. **Invite it.** OAuth2 tab -> URL Generator: check `bot` and `applications.commands`, then
    under Bot Permissions check `Send Messages`. Open the generated URL and add the bot to a
    private server of your own (Discord: + -> Create My Own -> For me and my friends).
@@ -95,11 +97,13 @@ while that's on and the bot is running.
    your name -> Copy User ID; right-click the server icon -> Copy Server ID.
 4. **Configure.** Create `discord_bot.json` in this folder (git-ignored):
    `{"token": "<bot token>", "user_id": "<your user ID>", "guild_id": "<server ID>"}`
+   Optionally add `"channel_id": "<channel ID>"` (right-click a channel -> Copy Channel ID) for
+   a channel where it answers every message without an @mention.
 5. **Run.** `pip install -r requirements.txt`, then `python discord_bot.py`. When it prints
-   "Ready", type `/ask` in your server.
+   "Ready", message it in Discord.
 
-To start it automatically, add a Task Scheduler task (trigger: At log on) that runs
-`pythonw.exe` with argument `discord_bot.py`, starting in this folder.
+To keep it running in the background (started at logon, restarted if it crashes, logging to
+`discord_bot.log`), run `powershell -ExecutionPolicy Bypass -File install_bot_task.ps1` once.
 
 ## Files
 

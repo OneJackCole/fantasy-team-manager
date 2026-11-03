@@ -11,8 +11,9 @@ venv/
 # Local email preview
 weekly_email.html
 
-# Discord bot token and IDs
+# Discord bot token and IDs, and its log
 discord_bot.json
+discord_bot.log*
 
 # Local cache of public NHL API responses
 .cache/
