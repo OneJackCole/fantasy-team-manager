@@ -19,6 +19,7 @@ from claude_agent_sdk import (ClaudeAgentOptions, ClaudeSDKError, CLINotFoundErr
 
 import fantasy
 import nhl_api
+import roster_file
 import scoring
 
 MODEL = "claude-opus-5-5"
@@ -53,6 +54,14 @@ How to work:
 (Util, where the league has it, takes any skater). Players in IR/IR+ slots are injured and can't \
 play.
 - If the league has max_acquisitions_per_week, keep pickup suggestions within it.
+- When the user says they've made a roster move (an add, a drop, an IR move, a trade) or that a \
+player's Yahoo eligibility or NHL team changed, record it with update_roster: every change of \
+that transaction in one call, then say in a line what you changed. Fill in what the user implies \
+(dropping someone to make room means the new player takes a spot). Only record moves the user \
+says are done or tells you to record, never ones they're still weighing, and only what they \
+told you - don't copy in anything you read from Yahoo. If the details are unclear (which slot, \
+eligibility for a new player), ask instead of guessing. Don't edit the roster to fix a mismatch \
+you noticed yourself; point it out and let the user say so.
 
 Limits you must respect:
 - You do NOT know which players are free agents in the user's league. When you suggest a pickup, \
@@ -198,6 +207,43 @@ def get_team_game_counts(args):
     } for team, games in schedule.items()]
     counts.sort(key=lambda c: c['games_remaining'], reverse=True)
     return json.dumps(counts)
+
+
+@fantasy_tool(
+    "update_roster",
+    "Record roster moves the user has made in their league's roster file, then commit and push "
+    "it. Actions: add (a pickup or trade acquisition; slot defaults to BN), drop, move (to a "
+    "slot, e.g. IR, IR+, BN or an active slot), edit (NHL team after a trade, Yahoo eligible "
+    "positions, or injury status). Give every change of one transaction in a single call, e.g. "
+    "a drop, an IR move and an add together: it's all or nothing, and fails if the result "
+    "doesn't fit the league's roster spots.",
+    {"type": "object",
+     "properties": {
+         **LEAGUE_ARG,
+         "changes": {"type": "array", "items": {
+             "type": "object",
+             "properties": {
+                 "action": {"type": "string", "enum": ["add", "drop", "move", "edit"]},
+                 "name": {"type": "string", "description": "Player's full name."},
+                 "slot": {"type": "string", "description": "Roster slot, e.g. BN, IR, IR+, "
+                                                           "C, LW, W, D, G, Util."},
+                 "nhl_team": {"type": "string", "description": "NHL team abbreviation; for "
+                                                               "add it's looked up if left out."},
+                 "eligible_positions": {"type": "array", "items": {"type": "string"},
+                                        "description": "Yahoo eligibility, e.g. [\"C\", \"LW\"]. "
+                                                       "Required to add a skater."},
+                 "status": {"type": "string", "description": "Yahoo injury tag such as DTD, "
+                                                             "O, IR, IR-LT, IR-NR; set from "
+                                                             "the slot if left out."}},
+             "required": ["action", "name"]}},
+         "summary": {"type": "string", "description": "Short commit message, e.g. \"drop Levi, "
+                                                      "Kleven to IR+, add Benson\"."}},
+     "required": ["league", "changes", "summary"]})
+def update_roster(args):
+    try:
+        return json.dumps(roster_file.update(league_of(args), args['changes'], args['summary']))
+    except (ValueError, KeyError) as e:
+        return json.dumps({'error': f"Nothing changed: {e}"})
 
 
 DISCORD_FORMAT = """

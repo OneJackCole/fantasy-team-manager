@@ -40,6 +40,10 @@ python fantasy.py drop Seth Jarvis      # who to drop to activate an IR player
 python fantasy.py pickup waivers.txt    # rank free agents and who to drop for each
 ```
 
+Tell the agent (or the Discord bot) about a move you've made - "dropped Levi, Kleven to IR+,
+picked up Benson" - and it updates that league's file and commits and pushes it. It only records
+moves you say are done.
+
 For `pickup`, copy a player list from Yahoo's Players page into a text file (or pipe it in).
 Lines like `Jack Roslovic TOR - C,RW` work too.
 
@@ -113,8 +117,9 @@ To keep it running in the background (started at logon, restarted if it crashes,
 - `scoring.py` - expected fantasy points per game from a league's scoring rules
 - `fantasy.py` - roster + schedule analysis: best lineup for each day, goalie appearances
 - `agent.py` - Claude agent with tools over the above
+- `roster_file.py` - records roster moves in a league file and commits them
 - `weekly_email.py` - Monday email report, sent by the GitHub Actions workflow
-- `discord_bot.py` - `/ask` the agent from Discord
+- `discord_bot.py` - chat with the agent from Discord
 - `test_yahoo.py` - one-time Yahoo sign-in and connection check
 
 ## Yahoo
