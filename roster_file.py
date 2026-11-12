@@ -127,7 +127,9 @@ def render(text, data):
     for g in GROUPS:
         rows = ',\n'.join('    ' + json.dumps(p, ensure_ascii=False) for p in data[g])
         blocks.append(f'  "{g}": [\n{rows}\n  ]')
-    return text[:start] + ',\n'.join(blocks) + '\n}\n'
+    new = text[:start] + ',\n'.join(blocks) + '\n}\n'
+    # Keep the file's line endings (Git on Windows may have checked it out with CRLF)
+    return new.replace('\r\n', '\n').replace('\n', '\r\n') if '\r\n' in text else new
 
 
 def git(*args):
