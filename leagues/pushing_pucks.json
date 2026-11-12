@@ -23,7 +23,8 @@
     {"name": "Connor Bedard", "nhl_team": "CHI", "position": "BN", "eligible_positions": ["C", "RW"], "status": "Bench"},
     {"name": "Steven Stamkos", "nhl_team": "NSH", "position": "BN", "eligible_positions": ["C", "LW", "RW"], "status": "Bench"},
     {"name": "Zach Benson", "nhl_team": "BUF", "position": "LW", "eligible_positions": ["LW"], "status": "Active"},
-    {"name": "Bryan Rust", "nhl_team": "PIT", "position": "IR", "eligible_positions": ["RW"], "status": "IR"}
+    {"name": "Bryan Rust", "nhl_team": "PIT", "position": "IR", "eligible_positions": ["RW"], "status": "IR"},
+    {"name": "Brad Marchand", "nhl_team": "FLA", "position": "IR", "eligible_positions": ["LW", "RW"], "status": "IR"}
   ],
   "defensemen": [
     {"name": "Roman Josi", "nhl_team": "NSH", "position": "D", "eligible_positions": ["D"], "status": "Active"},
@@ -33,7 +34,6 @@
     {"name": "Tyler Kleven", "nhl_team": "OTT", "position": "BN", "eligible_positions": ["D"], "status": "Bench"}
   ],
   "goalies": [
-    {"name": "Devin Cooley", "nhl_team": "CGY", "position": "IR", "eligible_positions": ["G"], "status": "IR"},
     {"name": "Joel Hofer", "nhl_team": "STL", "position": "G", "eligible_positions": ["G"], "status": "Active"},
     {"name": "Connor Hellebuyck", "nhl_team": "NJ", "position": "G", "eligible_positions": ["G"], "status": "Active"}
   ]
