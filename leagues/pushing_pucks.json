@@ -30,7 +30,7 @@
     {"name": "Roman Josi", "nhl_team": "NSH", "position": "D", "eligible_positions": ["D"], "status": "Active"},
     {"name": "Nikita Zadorov", "nhl_team": "BOS", "position": "D", "eligible_positions": ["D"], "status": "Active"},
     {"name": "Sean Walker", "nhl_team": "CAR", "position": "D", "eligible_positions": ["D"], "status": "Active"},
-    {"name": "Cale Makar", "nhl_team": "COL", "position": "D", "eligible_positions": ["D"], "status": "Active"},
+    {"name": "Cale Makar", "nhl_team": "COL", "position": "IR+", "eligible_positions": ["D"], "status": "IR"},
     {"name": "Tyler Kleven", "nhl_team": "OTT", "position": "BN", "eligible_positions": ["D"], "status": "Bench"}
   ],
   "goalies": [
