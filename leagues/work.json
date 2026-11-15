@@ -25,13 +25,14 @@
     {"name": "Jake Guentzel", "nhl_team": "TB", "position": "BN", "eligible_positions": ["W"], "status": "Bench"},
     {"name": "Aleksander Barkov", "nhl_team": "FLA", "position": "IR", "eligible_positions": ["C"], "status": "IR-LT"},
     {"name": "Mathew Barzal", "nhl_team": "NYI", "position": "IR+", "eligible_positions": ["C", "W"], "status": "IR-NR"},
-    {"name": "John Tavares", "nhl_team": "TOR", "position": "IR+", "eligible_positions": ["C"], "status": "IR"}
+    {"name": "John Tavares", "nhl_team": "TOR", "position": "BN", "eligible_positions": ["C"], "status": "Bench"}
   ],
   "defensemen": [
-    {"name": "Miro Heiskanen", "nhl_team": "DAL", "position": "D", "eligible_positions": ["D"], "status": "Active"},
+    {"name": "Miro Heiskanen", "nhl_team": "DAL", "position": "IR", "eligible_positions": ["D"], "status": "IR"},
     {"name": "Shayne Gostisbehere", "nhl_team": "CAR", "position": "D", "eligible_positions": ["D"], "status": "Active"},
     {"name": "Mikhail Sergachev", "nhl_team": "UTA", "position": "D", "eligible_positions": ["D"], "status": "Active"},
-    {"name": "Vince Dunn", "nhl_team": "SEA", "position": "D", "eligible_positions": ["D"], "status": "Active"}
+    {"name": "Vince Dunn", "nhl_team": "SEA", "position": "D", "eligible_positions": ["D"], "status": "Active"},
+    {"name": "Charle-Edouard D'Astous", "nhl_team": "TBL", "position": "D", "eligible_positions": ["D"], "status": "Active"}
   ],
   "goalies": [
     {"name": "Pyotr Kochetkov", "nhl_team": "CAR", "position": "G", "eligible_positions": ["G"], "status": "Active"},
