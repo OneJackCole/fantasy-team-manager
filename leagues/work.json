@@ -16,7 +16,6 @@
     {"name": "Connor McDavid", "nhl_team": "EDM", "position": "C", "eligible_positions": ["C"], "status": "Active"},
     {"name": "Wyatt Johnston", "nhl_team": "DAL", "position": "C", "eligible_positions": ["C", "W"], "status": "Active"},
     {"name": "Seth Jarvis", "nhl_team": "CAR", "position": "W", "eligible_positions": ["W"], "status": "Active"},
-    {"name": "Cole Perfetti", "nhl_team": "WPG", "position": "W", "eligible_positions": ["W"], "status": "Active"},
     {"name": "Martin Necas", "nhl_team": "COL", "position": "W", "eligible_positions": ["W"], "status": "Active"},
     {"name": "Alexis Lafrenière", "nhl_team": "NYR", "position": "W", "eligible_positions": ["W"], "status": "Active"},
     {"name": "Clayton Keller", "nhl_team": "UTA", "position": "Util", "eligible_positions": ["W"], "status": "Active"},
