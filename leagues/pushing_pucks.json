@@ -25,7 +25,7 @@
     {"name": "Zach Benson", "nhl_team": "BUF", "position": "LW", "eligible_positions": ["LW"], "status": "Active"},
     {"name": "Bryan Rust", "nhl_team": "PIT", "position": "IR", "eligible_positions": ["RW"], "status": "IR"},
     {"name": "Brad Marchand", "nhl_team": "FLA", "position": "IR", "eligible_positions": ["LW", "RW"], "status": "IR"},
-    {"name": "Brock Boeser", "nhl_team": "VAN", "position": "BN", "eligible_positions": ["RW"], "status": "Bench"}
+    {"name": "Brock Boeser", "nhl_team": "VAN", "position": "BN", "eligible_positions": ["LW", "RW"], "status": "Bench"}
   ],
   "defensemen": [
     {"name": "Roman Josi", "nhl_team": "NSH", "position": "D", "eligible_positions": ["D"], "status": "Active"},
