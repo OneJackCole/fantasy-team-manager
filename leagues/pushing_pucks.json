@@ -22,7 +22,6 @@
     {"name": "Connor Bedard", "nhl_team": "CHI", "position": "BN", "eligible_positions": ["C", "RW"], "status": "Bench"},
     {"name": "Steven Stamkos", "nhl_team": "NSH", "position": "BN", "eligible_positions": ["C", "LW", "RW"], "status": "Bench"},
     {"name": "Zach Benson", "nhl_team": "BUF", "position": "LW", "eligible_positions": ["LW"], "status": "Active"},
-    {"name": "Bryan Rust", "nhl_team": "PIT", "position": "IR", "eligible_positions": ["RW"], "status": "IR"},
     {"name": "Brad Marchand", "nhl_team": "FLA", "position": "IR", "eligible_positions": ["LW", "RW"], "status": "IR"},
     {"name": "Brock Boeser", "nhl_team": "VAN", "position": "BN", "eligible_positions": ["LW", "RW"], "status": "Bench"},
     {"name": "Blake Coleman", "nhl_team": "MIN", "position": "BN", "eligible_positions": ["LW", "RW"], "status": "Bench"}
@@ -31,7 +30,7 @@
     {"name": "Roman Josi", "nhl_team": "NSH", "position": "D", "eligible_positions": ["D"], "status": "Active"},
     {"name": "Nikita Zadorov", "nhl_team": "BOS", "position": "D", "eligible_positions": ["D"], "status": "Active"},
     {"name": "Sean Walker", "nhl_team": "CAR", "position": "D", "eligible_positions": ["D"], "status": "Active"},
-    {"name": "Cale Makar", "nhl_team": "COL", "position": "IR+", "eligible_positions": ["D"], "status": "IR"},
+    {"name": "Cale Makar", "nhl_team": "COL", "position": "IR", "eligible_positions": ["D"], "status": "IR"},
     {"name": "Tyler Kleven", "nhl_team": "OTT", "position": "BN", "eligible_positions": ["D"], "status": "Bench"}
   ],
   "goalies": [
