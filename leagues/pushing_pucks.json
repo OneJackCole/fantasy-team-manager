@@ -16,7 +16,6 @@
   "forwards": [
     {"name": "Sebastian Aho", "nhl_team": "CAR", "position": "C", "eligible_positions": ["C"], "status": "Active"},
     {"name": "Kyle Connor", "nhl_team": "WPG", "position": "LW", "eligible_positions": ["LW"], "status": "Active"},
-    {"name": "Ryan Nugent-Hopkins", "nhl_team": "EDM", "position": "LW", "eligible_positions": ["C", "LW"], "status": "Active"},
     {"name": "Adrian Kempe", "nhl_team": "LA", "position": "RW", "eligible_positions": ["RW"], "status": "Active"},
     {"name": "Michael Brandsegg-Nygård", "nhl_team": "DET", "position": "RW", "eligible_positions": ["RW"], "status": "Active"},
     {"name": "Connor Bedard", "nhl_team": "CHI", "position": "IR+", "eligible_positions": ["C", "RW"], "status": "IR"},
@@ -24,7 +23,8 @@
     {"name": "Zach Benson", "nhl_team": "BUF", "position": "LW", "eligible_positions": ["LW"], "status": "Active"},
     {"name": "Brad Marchand", "nhl_team": "FLA", "position": "IR", "eligible_positions": ["LW", "RW"], "status": "IR"},
     {"name": "Brock Boeser", "nhl_team": "VAN", "position": "BN", "eligible_positions": ["LW", "RW"], "status": "Bench"},
-    {"name": "Blake Coleman", "nhl_team": "MIN", "position": "BN", "eligible_positions": ["LW", "RW"], "status": "Bench"}
+    {"name": "Blake Coleman", "nhl_team": "MIN", "position": "BN", "eligible_positions": ["LW", "RW"], "status": "Bench"},
+    {"name": "Anthony Cirelli", "nhl_team": "TBL", "position": "C", "eligible_positions": ["C"], "status": "Active"}
   ],
   "defensemen": [
     {"name": "Roman Josi", "nhl_team": "NSH", "position": "D", "eligible_positions": ["D"], "status": "Active"},
