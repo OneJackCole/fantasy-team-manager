@@ -22,7 +22,7 @@
     {"name": "Zach Benson", "nhl_team": "BUF", "position": "LW", "eligible_positions": ["LW"], "status": "Active"},
     {"name": "Brad Marchand", "nhl_team": "FLA", "position": "IR", "eligible_positions": ["LW", "RW"], "status": "IR"},
     {"name": "Brock Boeser", "nhl_team": "VAN", "position": "BN", "eligible_positions": ["LW", "RW"], "status": "Bench"},
-    {"name": "Blake Coleman", "nhl_team": "MIN", "position": "BN", "eligible_positions": ["LW", "RW"], "status": "Bench"},
+    {"name": "Blake Coleman", "nhl_team": "MIN", "position": "BN", "eligible_positions": ["C", "LW"], "status": "Bench"},
     {"name": "Anthony Cirelli", "nhl_team": "TBL", "position": "C", "eligible_positions": ["C"], "status": "Active"},
     {"name": "Bryan Rust", "nhl_team": "PIT", "position": "IR+", "eligible_positions": ["RW"], "status": "IR"}
   ],
