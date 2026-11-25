@@ -28,14 +28,13 @@
   ],
   "defensemen": [
     {"name": "Roman Josi", "nhl_team": "NSH", "position": "D", "eligible_positions": ["D"], "status": "Active"},
-    {"name": "Nikita Zadorov", "nhl_team": "BOS", "position": "D", "eligible_positions": ["D"], "status": "Active"},
+    {"name": "Nikita Zadorov", "nhl_team": "BOS", "position": "BN", "eligible_positions": ["D"], "status": "Bench"},
     {"name": "Sean Walker", "nhl_team": "CAR", "position": "D", "eligible_positions": ["D"], "status": "Active"},
-    {"name": "Cale Makar", "nhl_team": "COL", "position": "IR", "eligible_positions": ["D"], "status": "IR"},
-    {"name": "Tyler Kleven", "nhl_team": "OTT", "position": "BN", "eligible_positions": ["D"], "status": "Bench"},
-    {"name": "Sam Rinzel", "nhl_team": "CHI", "position": "BN", "eligible_positions": ["D"], "status": "Bench"}
+    {"name": "Cale Makar", "nhl_team": "COL", "position": "D", "eligible_positions": ["D"], "status": "Active"},
+    {"name": "Sam Rinzel", "nhl_team": "CHI", "position": "D", "eligible_positions": ["D"], "status": "Active"}
   ],
   "goalies": [
     {"name": "Joel Hofer", "nhl_team": "STL", "position": "G", "eligible_positions": ["G"], "status": "Active"},
-    {"name": "Connor Hellebuyck", "nhl_team": "NJ", "position": "G", "eligible_positions": ["G"], "status": "Active"}
+    {"name": "Connor Hellebuyck", "nhl_team": "NJD", "position": "G", "eligible_positions": ["G"], "status": "Active"}
   ]
 }
