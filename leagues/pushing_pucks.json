@@ -18,12 +18,11 @@
     {"name": "Kyle Connor", "nhl_team": "WPG", "position": "LW", "eligible_positions": ["LW"], "status": "Active"},
     {"name": "Adrian Kempe", "nhl_team": "LA", "position": "RW", "eligible_positions": ["RW"], "status": "Active"},
     {"name": "Michael Brandsegg-Nygård", "nhl_team": "DET", "position": "RW", "eligible_positions": ["RW"], "status": "Active"},
-    {"name": "Steven Stamkos", "nhl_team": "NSH", "position": "BN", "eligible_positions": ["C", "LW", "RW"], "status": "Bench"},
+    {"name": "Steven Stamkos", "nhl_team": "NSH", "position": "C", "eligible_positions": ["C", "LW", "RW"], "status": "Active"},
     {"name": "Zach Benson", "nhl_team": "BUF", "position": "LW", "eligible_positions": ["LW"], "status": "Active"},
-    {"name": "Brad Marchand", "nhl_team": "FLA", "position": "IR", "eligible_positions": ["LW", "RW"], "status": "IR"},
+    {"name": "Brad Marchand", "nhl_team": "FLA", "position": "BN", "eligible_positions": ["LW", "RW"], "status": "Bench"},
     {"name": "Brock Boeser", "nhl_team": "VAN", "position": "BN", "eligible_positions": ["LW", "RW"], "status": "Bench"},
     {"name": "Blake Coleman", "nhl_team": "MIN", "position": "BN", "eligible_positions": ["C", "LW"], "status": "Bench"},
-    {"name": "Anthony Cirelli", "nhl_team": "TBL", "position": "C", "eligible_positions": ["C"], "status": "Active"},
     {"name": "Bryan Rust", "nhl_team": "PIT", "position": "IR+", "eligible_positions": ["RW"], "status": "IR"}
   ],
   "defensemen": [
