@@ -29,7 +29,7 @@
     {"name": "Miro Heiskanen", "nhl_team": "DAL", "position": "D", "eligible_positions": ["D"], "status": "Active"},
     {"name": "Shayne Gostisbehere", "nhl_team": "CAR", "position": "D", "eligible_positions": ["D"], "status": "Active"},
     {"name": "Mikhail Sergachev", "nhl_team": "UTA", "position": "D", "eligible_positions": ["D"], "status": "Active"},
-    {"name": "Charle-Edouard D'Astous", "nhl_team": "TBL", "position": "D", "eligible_positions": ["D"], "status": "Active"}
+    {"name": "Logan Mailloux", "nhl_team": "STL", "position": "BN", "eligible_positions": ["D"], "status": "Bench"}
   ],
   "goalies": [
     {"name": "Pyotr Kochetkov", "nhl_team": "CAR", "position": "G", "eligible_positions": ["G"], "status": "Active"},
